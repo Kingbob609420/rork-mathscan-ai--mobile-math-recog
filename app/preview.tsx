@@ -22,10 +22,16 @@ const { width, height } = Dimensions.get("window");
 
 export default function PreviewScreen() {
   const { theme } = useTheme();
-  const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
+  const { imageUri: rawImageUri } = useLocalSearchParams<{ imageUri: string }>();
   const { processScan } = useMathScan();
   const [processing, setProcessing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Decode the URI in case it was URL-encoded during navigation
+  const imageUri = rawImageUri ? decodeURIComponent(rawImageUri) : null;
+
+  console.log('[Preview] Raw imageUri:', rawImageUri);
+  console.log('[Preview] Decoded imageUri:', imageUri);
 
   const handleConfirm = async () => {
     if (!imageUri) return;
@@ -160,12 +166,18 @@ export default function PreviewScreen() {
       </View>
 
       <View style={styles.imageContainer}>
-        {imageUri && (
+        {imageUri ? (
           <Image
             source={{ uri: imageUri }}
             style={styles.image}
             resizeMode="contain"
+            onError={(e) => console.log('[Preview] Image load error:', e.nativeEvent.error)}
+            onLoad={() => console.log('[Preview] Image loaded successfully')}
           />
+        ) : (
+          <View style={styles.noImageContainer}>
+            <Text style={styles.noImageText}>No image to display</Text>
+          </View>
         )}
       </View>
 
@@ -336,5 +348,14 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
+  },
+  noImageContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  noImageText: {
+    color: "#fff",
+    fontSize: 16,
   },
 });

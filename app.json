@@ -1,89 +1,89 @@
 {
-"expo": {
-  "name": "MathScan AI: Mobile Math Recog",
-  "slug": "mathscan-ai-mobile-math-recognition-app",
-  "version": "3.4.5",
-  "orientation": "portrait",
-  "icon": "./assets/images/icon.png",
-  "scheme": "myapp",
-  "userInterfaceStyle": "automatic",
-  "newArchEnabled": true,
-  "splash": {
-    "image": "./assets/images/splash-icon.png",
-    "resizeMode": "contain",
-    "backgroundColor": "#ffffff"
-  },
-  "ios": {
-    "supportsTablet": true,
-    "bundleIdentifier": "app.r.mathscan-ai-mobile-math-recognition-app",
-    "usesIcloudStorage": true,
-    "infoPlist": {
-      "NSPhotoLibraryUsageDescription": "MathScan AI accesses your photo library to let you select existing photos of math problems, equations, worksheets, or textbook pages for analysis. For example, you can choose a saved screenshot of a math question to have it solved step-by-step.",
-      "NSCameraUsageDescription": "MathScan AI uses your camera to photograph math problems so the app can solve them. For example, point your camera at an equation like 2x + 5 = 15 written on paper, take a photo, and the app will show you the solution (x = 5) with step-by-step explanations.",
-      "NSMicrophoneUsageDescription": "MathScan AI uses your microphone to enable voice input when describing math problems. For example, you can speak a math question aloud instead of typing it.",
-      "NSPhotoLibraryAddUsageDescription": "MathScan AI saves solved math problems and step-by-step solutions to your photo library. For example, you can save a solution image to review later or share with classmates."
-    }
-  },
-  "android": {
-    "adaptiveIcon": {
-      "foregroundImage": "./assets/images/adaptive-icon.png",
+  "expo": {
+    "name": "MathScan AI: Mobile Math Recog",
+    "slug": "mathscan-ai-mobile-math-recognition-app",
+    "version": "3.4.5",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "package": "app.rork.mathscan_ai_mobile_math_recognition_app",
-    "permissions": [
-      "CAMERA",
-      "READ_EXTERNAL_STORAGE",
-      "WRITE_EXTERNAL_STORAGE",
-      "RECORD_AUDIO",
-      "READ_MEDIA_IMAGES",
-      "READ_MEDIA_VIDEO",
-      "READ_MEDIA_AUDIO",
-      "READ_MEDIA_VISUAL_USER_SELECTED",
-      "ACCESS_MEDIA_LOCATION",
-      "INTERNET"
-    ]
-  },
-  "web": {
-    "favicon": "./assets/images/favicon.png"
-  },
-  "plugins": [
-    [
-      "expo-router",
-      {
-        "origin": "https://rork.com/"
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.r.mathscan-ai-mobile-math-recognition-app",
+      "usesIcloudStorage": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "MathScan AI accesses your photo library to let you select existing photos of math problems, equations, worksheets, or textbook pages for analysis. For example, you can choose a saved screenshot of a math question to have it solved step-by-step.",
+        "NSCameraUsageDescription": "MathScan AI uses your camera to photograph math problems so the app can solve them. For example, point your camera at an equation like 2x + 5 = 15 written on paper, take a photo, and the app will show you the solution (x = 5) with step-by-step explanations.",
+        "NSMicrophoneUsageDescription": "MathScan AI uses your microphone to enable voice input when describing math problems. For example, you can speak a math question aloud instead of typing it.",
+        "NSPhotoLibraryAddUsageDescription": "MathScan AI saves solved math problems and step-by-step solutions to your photo library. For example, you can save a solution image to review later or share with classmates."
       }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "app.rork.mathscan_ai_mobile_math_recognition_app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_AUDIO",
+        "READ_MEDIA_VISUAL_USER_SELECTED",
+        "ACCESS_MEDIA_LOCATION",
+        "INTERNET"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://rork.com/"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them with your friends."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MathScan AI uses your camera to photograph math problems so the app can solve them. For example, point your camera at an equation like 2x + 5 = 15 written on paper, take a photo, and the app will show you the solution (x = 5) with step-by-step explanations.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
     ],
-    [
-      "expo-image-picker",
-      {
-        "photosPermission": "The app accesses your photos to let you share them with your friends."
-      }
-    ],
-    [
-      "expo-camera",
-      {
-        "cameraPermission": "MathScan AI uses your camera to photograph math problems so the app can solve them. For example, point your camera at an equation like 2x + 5 = 15 written on paper, take a photo, and the app will show you the solution (x = 5) with step-by-step explanations.",
-        "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
-        "recordAudioAndroid": true
-      }
-    ],
-    [
-      "expo-media-library",
-      {
-        "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
-        "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
-        "isAccessMediaLocationEnabled": true
-      }
-    ],
-    [
-      "expo-document-picker",
-      {
-        "iCloudContainerEnvironment": "Production"
-      }
-    ]
-  ],
-  "experiments": {
-    "typedRoutes": true
+    "experiments": {
+      "typedRoutes": true
+    }
   }
-}
 }
