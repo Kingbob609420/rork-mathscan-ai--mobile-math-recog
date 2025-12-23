@@ -39,7 +39,7 @@ export default function HistoryScreen() {
     return (
       <TouchableOpacity
         style={[styles.scanCard, { backgroundColor: theme.colors.card }]}
-        onPress={() => router.push(`/results/${item.id}`)}
+        onPress={() => router.push(`/results/${item.id}` as any)}
         activeOpacity={0.7}
       >
         <View style={styles.scanHeader}>
@@ -108,7 +108,7 @@ export default function HistoryScreen() {
         </Text>
         <TouchableOpacity
           style={[styles.scanButton, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push("/camera")}
+          onPress={() => router.push("/camera" as any)}
         >
           <Text style={[styles.scanButtonText, { color: "#fff" }]}>Scan Now</Text>
         </TouchableOpacity>

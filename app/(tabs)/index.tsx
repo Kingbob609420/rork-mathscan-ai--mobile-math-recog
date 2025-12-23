@@ -33,7 +33,7 @@ export default function HomeScreen() {
       setHasSeenOnboarding(!!seen);
       if (!seen) {
         console.log("[HomeScreen] Navigating to onboarding");
-        router.push("/onboarding");
+        router.push("/onboarding" as any);
       }
     } catch (error) {
       console.error("[HomeScreen] Error checking onboarding:", error);
@@ -70,7 +70,7 @@ export default function HomeScreen() {
           },
           {
             text: "Try Camera",
-            onPress: () => router.push("/camera"),
+            onPress: () => router.push("/camera" as any),
           },
           {
             text: "Cancel",
@@ -79,7 +79,7 @@ export default function HomeScreen() {
         ]
       );
     } else {
-      router.push("/camera");
+      router.push("/camera" as any);
     }
   };
 
@@ -110,7 +110,7 @@ export default function HomeScreen() {
       if (!result.canceled && result.assets[0]) {
         console.log("Selected image:", result.assets[0].uri);
         router.push({
-          pathname: "/preview",
+          pathname: "/preview" as any,
           params: { imageUri: result.assets[0].uri },
         });
       }

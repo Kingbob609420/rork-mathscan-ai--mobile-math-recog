@@ -33,7 +33,7 @@ export default function PreviewScreen() {
     setProcessing(true);
     try {
       const scanId = await processScan(imageUri);
-      router.replace(`/results/${scanId}`);
+      router.replace(`/results/${scanId}` as any);
     } catch (error) {
       console.error("Error processing scan:", error);
       Alert.alert(

@@ -159,7 +159,7 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
         });
         
         router.push({
-          pathname: "/preview",
+          pathname: "/preview" as any,
           params: { imageUri: photo.uri },
         });
       } catch (error) {

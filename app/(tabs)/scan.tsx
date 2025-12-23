@@ -28,14 +28,14 @@ export default function ScanScreen() {
         [
           {
             text: "Continue",
-            onPress: () => router.push("/camera"),
+            onPress: () => router.push("/camera" as any),
           },
         ]
       );
       return;
     }
 
-    router.push("/camera");
+    router.push("/camera" as any);
   };
 
   const handleGalleryPress = async () => {
@@ -50,7 +50,7 @@ export default function ScanScreen() {
 
       if (!result.canceled && result.assets[0]) {
         router.push({
-          pathname: "/preview",
+          pathname: "/preview" as any,
           params: { imageUri: result.assets[0].uri },
         });
       }
@@ -81,7 +81,7 @@ export default function ScanScreen() {
         // For now, just process the first image
         // In the future, we could batch process multiple images
         router.push({
-          pathname: "/preview",
+          pathname: "/preview" as any,
           params: { imageUri: result.assets[0].uri },
         });
         
@@ -115,7 +115,7 @@ export default function ScanScreen() {
 
       if (!result.canceled && result.assets[0]) {
         router.push({
-          pathname: "/preview",
+          pathname: "/preview" as any,
           params: { imageUri: result.assets[0].uri },
         });
       }

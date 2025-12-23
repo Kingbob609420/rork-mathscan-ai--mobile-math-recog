@@ -105,7 +105,7 @@ export default function ResultsScreen() {
   };
 
   const handleNewScan = () => {
-    router.replace("/camera");
+    router.replace("/camera" as any);
   };
 
   const handleHome = () => {
