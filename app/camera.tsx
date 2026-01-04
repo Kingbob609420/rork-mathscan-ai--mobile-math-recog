@@ -125,9 +125,12 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
           base64: false,
         });
         
+        const encodedUri = encodeURIComponent(photo.uri);
+        console.log('[Camera] Photo taken, URI:', photo.uri);
+        console.log('[Camera] Encoded URI:', encodedUri);
         router.push({
           pathname: "/preview" as any,
-          params: { imageUri: photo.uri },
+          params: { imageUri: encodedUri },
         });
       } catch (error) {
         console.error("Error taking picture:", error);

@@ -49,9 +49,11 @@ export default function ScanScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
+        const encodedUri = encodeURIComponent(result.assets[0].uri);
+        console.log('[Scan] Gallery image selected:', result.assets[0].uri);
         router.push({
           pathname: "/preview" as any,
-          params: { imageUri: result.assets[0].uri },
+          params: { imageUri: encodedUri },
         });
       }
     } catch (error) {
@@ -80,9 +82,11 @@ export default function ScanScreen() {
       if (!result.canceled && result.assets.length > 0) {
         // For now, just process the first image
         // In the future, we could batch process multiple images
+        const encodedUri = encodeURIComponent(result.assets[0].uri);
+        console.log('[Scan] Multiple images selected, using first:', result.assets[0].uri);
         router.push({
           pathname: "/preview" as any,
-          params: { imageUri: result.assets[0].uri },
+          params: { imageUri: encodedUri },
         });
         
         if (result.assets.length > 1) {
@@ -114,9 +118,11 @@ export default function ScanScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
+        const encodedUri = encodeURIComponent(result.assets[0].uri);
+        console.log('[Scan] Document selected:', result.assets[0].uri);
         router.push({
           pathname: "/preview" as any,
-          params: { imageUri: result.assets[0].uri },
+          params: { imageUri: encodedUri },
         });
       }
     } catch (error) {
