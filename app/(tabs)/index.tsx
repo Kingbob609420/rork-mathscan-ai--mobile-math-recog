@@ -146,8 +146,8 @@ export default function HomeScreen() {
             }]}>
               <Scan size={56} color={theme.isDark ? theme.colors.primary : "#fff"} strokeWidth={1.5} />
             </View>
-            <Text style={[styles.appName, { color: theme.colors.text }]}>MathScan AI</Text>
-            <Text style={[styles.tagline, { color: theme.colors.textSecondary }]}>Point. Shoot. Solve.</Text>
+            <Text style={[styles.appName, { color: theme.isDark ? '#FFFFFF' : '#000000' }]}>MathScan AI</Text>
+            <Text style={[styles.tagline, { color: theme.isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)' }]}>Point. Shoot. Solve.</Text>
           </View>
 
           <View style={styles.buttonsContainer}>
