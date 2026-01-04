@@ -16,7 +16,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMathScan } from "@/providers/MathScanProvider";
 import { useTheme } from "@/providers/ThemeProvider";
 import * as MediaLibrary from "expo-media-library";
-import { File, Paths } from "expo-file-system";
 
 const { width, height } = Dimensions.get("window");
 
@@ -100,11 +99,14 @@ export default function PreviewScreen() {
           return;
         }
 
+        // Dynamic import for mobile only
+        const { File, Paths } = await import('expo-file-system');
+        
         const filename = `math-scan-${Date.now()}.jpg`;
+        const sourceFile = new File(imageUri);
         const destinationFile = new File(Paths.cache, filename);
         
-        // Copy the image to a permanent location
-        const sourceFile = new File(imageUri);
+        // Copy the image to cache
         sourceFile.copy(destinationFile);
         
         // Save to media library
