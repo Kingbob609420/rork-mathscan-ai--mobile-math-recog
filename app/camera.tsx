@@ -57,20 +57,27 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
             console.log("[Camera] Permissions status:", permissions);
             
             if (permissions.granted) {
+              console.log('[Camera] Already have permissions! Setting state...');
               this.setState({
                 cameraLoaded: true,
                 permissionGranted: true,
                 CameraView: cameraModule.CameraView,
+              }, () => {
+                console.log('[Camera] State updated:', this.state);
               });
             } else {
               const requestResult = await cameraModule.Camera.requestCameraPermissionsAsync();
               console.log("[Camera] Permission request result:", requestResult);
               
               if (requestResult.granted) {
+                console.log('[Camera] Permission granted! Setting state...');
                 this.setState({
                   cameraLoaded: true,
                   permissionGranted: true,
                   CameraView: cameraModule.CameraView,
+                }, () => {
+                  console.log('[Camera] State updated:', this.state);
+                  this.forceUpdate();
                 });
               } else {
                 Alert.alert(
@@ -234,6 +241,7 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
     }
 
     if (!permissionGranted) {
+      console.log('[Camera] Render: Permission not granted yet');
       return (
         <View style={[styles.permissionContainer, { backgroundColor: theme.colors.background }]}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -243,6 +251,8 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
         </View>
       );
     }
+
+    console.log('[Camera] Render: Showing camera view', { cameraLoaded, permissionGranted, hasCameraView: !!CameraView });
 
     return (
       <View style={styles.container}>

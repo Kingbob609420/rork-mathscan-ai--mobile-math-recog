@@ -2,7 +2,7 @@
   "expo": {
     "name": "MathScan AI: Mobile Math Recog",
     "slug": "mathscan-ai-mobile-math-recognition-app",
-    "version": "3.4.6",
+    "version": "3.4.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -19,7 +19,7 @@
       "usesIcloudStorage": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "MathScan AI accesses your photo library to let you select existing photos of math problems, equations, worksheets, or textbook pages for analysis. For example, you can choose a saved screenshot of a math question to have it solved step-by-step.",
-        "NSCameraUsageDescription": "This app requires camera access to capture photos of handwritten or printed math problems, equations, and worksheets. For example, you can photograph a math equation from your homework and the app will analyze it, solve it, and provide step-by-step explanations.",
+        "NSCameraUsageDescription": "MathScan AI uses your camera to capture photos of handwritten or printed math problems, equations, and worksheets. For example, you can photograph a math equation from your homework and the app will analyze it, solve it, and provide step-by-step explanations.",
         "NSMicrophoneUsageDescription": "MathScan AI uses your microphone to enable voice input when describing math problems. For example, you can speak a math question aloud instead of typing it.",
         "NSPhotoLibraryAddUsageDescription": "MathScan AI saves solved math problems and step-by-step solutions to your photo library. For example, you can save a solution image to review later or share with classmates."
       }
@@ -62,7 +62,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "This app requires camera access to capture photos of handwritten or printed math problems, equations, and worksheets. For example, you can photograph a math equation from your homework and the app will analyze it, solve it, and provide step-by-step explanations.",
+          "cameraPermission": "MathScan AI uses your camera to capture photos of handwritten or printed math problems, equations, and worksheets. For example, you can photograph a math equation from your homework and the app will analyze it, solve it, and provide step-by-step explanations.",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
           "recordAudioAndroid": true
         }
@@ -70,8 +70,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
-          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
+          "photosPermission": "MathScan AI accesses your photo library to let you select existing photos of math problems, equations, worksheets, or textbook pages for analysis. For example, you can choose a saved screenshot of a math question to have it solved step-by-step.",
+          "savePhotosPermission": "MathScan AI saves solved math problems and step-by-step solutions to your photo library. For example, you can save a solution image to review later or share with classmates.",
           "isAccessMediaLocationEnabled": true
         }
       ],
