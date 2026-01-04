@@ -43,103 +43,63 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
   }
 
   async componentDidMount() {
+    console.log("[Camera] Component mounted");
+    console.log("[Camera] Platform:", Platform.OS);
+    
     try {
-      console.log("[Camera] Component mounted");
-      console.log("[Camera] Platform:", Platform.OS);
+      const cameraModule = await import("expo-camera");
+      console.log("[Camera] Camera module loaded");
       
-      setTimeout(async () => {
-        try {
-          const cameraModule = await import("expo-camera");
-          console.log("[Camera] Camera module loaded");
-          
-          try {
-            const permissions = await cameraModule.Camera.getCameraPermissionsAsync();
-            console.log("[Camera] Permissions status:", permissions);
-            
-            if (permissions.granted) {
-              console.log('[Camera] Already have permissions! Setting state...');
-              this.setState({
-                cameraLoaded: true,
-                permissionGranted: true,
-                CameraView: cameraModule.CameraView,
-              }, () => {
-                console.log('[Camera] State updated:', this.state);
-              });
-            } else {
-              const requestResult = await cameraModule.Camera.requestCameraPermissionsAsync();
-              console.log("[Camera] Permission request result:", requestResult);
-              
-              if (requestResult.granted) {
-                console.log('[Camera] Permission granted! Setting state...');
-                this.setState({
-                  cameraLoaded: true,
-                  permissionGranted: true,
-                  CameraView: cameraModule.CameraView,
-                }, () => {
-                  console.log('[Camera] State updated:', this.state);
-                  this.forceUpdate();
-                });
-              } else {
-                Alert.alert(
-                  "Camera Access",
-                  "We use the camera only to scan a worksheet or handwritten problem so we can extract the equation and show the solution. You can also choose a photo from your library instead.",
-                  [
-                    {
-                      text: "Continue",
-                      onPress: () => router.back(),
-                    },
-                  ]
-                );
-              }
-            }
-          } catch (permError) {
-            console.error("[Camera] Permission error:", permError);
-            console.error("[Camera] Permission error stack:", permError instanceof Error ? permError.stack : 'N/A');
-            
-            this.setState({
-              error: "Failed to access camera permissions",
-            });
-            
-            setTimeout(() => {
-              Alert.alert(
-                "Camera Error",
-                "Unable to access camera. Please use the gallery option instead.",
-                [
-                  {
-                    text: "OK",
-                    onPress: () => router.back(),
-                  },
-                ]
-              );
-            }, 100);
-          }
-        } catch (error) {
-          console.error("[Camera] Failed to load camera:", error);
-          console.error("[Camera] Error stack:", error instanceof Error ? error.stack : 'N/A');
-          this.setState({
-            error: "Camera is not available on this device",
-          });
-          
-          setTimeout(() => {
-            Alert.alert(
-              "Camera Not Available",
-              "The camera is not available on this device. Please try using the gallery option instead.",
-              [
-                {
-                  text: "OK",
-                  onPress: () => router.back(),
-                },
-              ]
-            );
-          }, 100);
-        }
-      }, 0);
-    } catch (error) {
-      console.error("[Camera] Outer error:", error);
       this.setState({
-        error: "Failed to initialize camera",
+        CameraView: cameraModule.CameraView,
+        cameraLoaded: true,
       });
-      router.back();
+
+      const permissions = await cameraModule.Camera.getCameraPermissionsAsync();
+      console.log("[Camera] Current permissions:", permissions);
+      
+      if (permissions.granted) {
+        console.log('[Camera] Already have permissions');
+        this.setState({ permissionGranted: true });
+        return;
+      }
+
+      console.log('[Camera] Requesting permission...');
+      const requestResult = await cameraModule.Camera.requestCameraPermissionsAsync();
+      console.log("[Camera] Permission result:", requestResult);
+      
+      if (requestResult.granted) {
+        console.log('[Camera] Permission granted!');
+        this.setState({ permissionGranted: true });
+      } else {
+        console.log('[Camera] Permission denied');
+        Alert.alert(
+          "Camera Access Required",
+          "We need camera access to scan math problems. You can also use the gallery option instead.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back(),
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error("[Camera] Error:", error);
+      this.setState({
+        error: "Camera not available",
+      });
+      
+      Alert.alert(
+        "Camera Error",
+        "Unable to access camera. Please use the gallery option instead.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]
+      );
     }
   }
 
@@ -176,37 +136,7 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
     }
   };
 
-  requestPermission = async () => {
-    try {
-      console.log("[Camera] Requesting permission");
-      const cameraModule = await import("expo-camera");
-      const permission = await cameraModule.Camera.requestCameraPermissionsAsync();
-      console.log("[Camera] Permission result:", permission);
-      
-      if (permission.granted) {
-        this.setState({ permissionGranted: true });
-      } else {
-        Alert.alert(
-          "Camera Access",
-          "We use the camera only to scan a worksheet or handwritten problem so we can extract the equation and show the solution. You can also choose a photo from your library instead.",
-          [
-            {
-              text: "Continue",
-              onPress: () => router.back(),
-            },
-          ]
-        );
-      }
-    } catch (error) {
-      console.error("[Camera] Error requesting permission:", error);
-      console.error("[Camera] Error stack:", error instanceof Error ? error.stack : 'N/A');
-      Alert.alert(
-        "Error",
-        "Failed to request camera permission. Please use the gallery option instead.",
-        [{ text: "OK", onPress: () => router.back() }]
-      );
-    }
-  };
+
 
   render() {
     const { facing, flash, showGrid, cameraLoaded, error, permissionGranted, CameraView } = this.state;
@@ -241,12 +171,12 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
     }
 
     if (!permissionGranted) {
-      console.log('[Camera] Render: Permission not granted yet');
+      console.log('[Camera] Render: Permission not granted');
       return (
         <View style={[styles.permissionContainer, { backgroundColor: theme.colors.background }]}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.permissionText, { color: theme.colors.textSecondary, marginTop: 20 }]}>
-            Requesting camera access...
+            Waiting for camera permission...
           </Text>
         </View>
       );
