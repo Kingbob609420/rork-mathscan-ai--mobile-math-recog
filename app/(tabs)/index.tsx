@@ -225,6 +225,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 18,
+    fontWeight: "700" as const,
     letterSpacing: 0.5,
   },
   buttonsContainer: {
