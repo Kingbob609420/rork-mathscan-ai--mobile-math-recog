@@ -69,7 +69,7 @@ export default function SettingsScreen() {
       } else {
         Alert.alert("Error", "Unable to open email client. Please email us at " + email);
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Unable to open email client. Please email us at " + email);
     }
   };
@@ -83,6 +83,21 @@ export default function SettingsScreen() {
       );
     } catch (error) {
       Alert.alert("Backend Test Failed", `Error: ${error}`);
+    }
+  };
+
+  const handlePrivacyPolicy = async () => {
+    const url = "https://docs.google.com/document/d/1mKU0H13ppZYE3IHboOmul82GwPMLSEsz4Fq-qKIZA8w/edit?usp=sharing";
+    
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "Unable to open privacy policy");
+      }
+    } catch {
+      Alert.alert("Error", "Unable to open privacy policy");
     }
   };
 
@@ -192,6 +207,7 @@ export default function SettingsScreen() {
           icon: <Shield size={20} color={theme.colors.icon} />,
           title: "Privacy Policy",
           description: "Learn how we protect your data",
+          onPress: handlePrivacyPolicy,
           action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
         },
         {
