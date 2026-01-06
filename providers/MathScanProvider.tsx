@@ -226,44 +226,56 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     }
     
     try {
-      const response = await fetch(uri);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
+      const response = await fetch(uri, { 
+        signal: controller.signal,
+        mode: 'cors',
+        cache: 'no-cache'
+      });
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.status}`);
       }
       const blob = await response.blob();
-      console.log('[convertImageToBase64] Blob size:', blob.size);
+      console.log('[convertImageToBase64] Blob size:', blob.size, 'type:', blob.type);
       
       if (blob.size === 0) {
         throw new Error('Image file is empty');
       }
       
-      if (Platform.OS === 'web') {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            if (!result) {
-              reject(new Error('FileReader returned empty'));
-              return;
-            }
-            const base64 = result.includes(',') ? result.split(',')[1] : result;
-            console.log('[convertImageToBase64] Success, length:', base64.length);
-            resolve(base64);
-          };
-          reader.onerror = () => reject(new Error('FileReader failed'));
-          reader.readAsDataURL(blob);
-        });
-      } else {
-        const arrayBuffer = await blob.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        bytes.forEach((b) => binary += String.fromCharCode(b));
-        const base64 = btoa(binary);
-        console.log('[convertImageToBase64] Success, length:', base64.length);
-        return base64;
+      if (blob.size > 10 * 1024 * 1024) {
+        console.warn('[convertImageToBase64] Large image, may cause issues:', blob.size);
       }
+      
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          if (!result) {
+            reject(new Error('FileReader returned empty'));
+            return;
+          }
+          const base64 = result.includes(',') ? result.split(',')[1] : result;
+          console.log('[convertImageToBase64] Success, base64 length:', base64.length);
+          resolve(base64);
+        };
+        reader.onerror = (e) => {
+          console.error('[convertImageToBase64] FileReader error:', e);
+          reject(new Error('FileReader failed'));
+        };
+        reader.readAsDataURL(blob);
+      });
     } catch (error) {
       console.error('[convertImageToBase64] Error:', error);
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Image conversion timed out');
+        }
+        throw new Error(`Image conversion failed: ${error.message}`);
+      }
       throw error;
     }
   }, []);
@@ -293,7 +305,7 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         
         const imageQuality = await analyzeImageQuality(base64Image);
         
-        console.log('[processScan] Calling AI...');
+        console.log('[processScan] Calling Rork AI...');
         const prompt = `You are a math problem analyzer. Analyze this image and identify all math problems.
 
 For each problem:
@@ -323,17 +335,30 @@ Return ONLY a JSON array:
 
 Analyze this math homework image:`;
         
-        const completion = await generateText({
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                { type: "image", image: base64Image }
-              ]
-            }
-          ]
-        });
+        console.log('[processScan] Image base64 size:', base64Image.length);
+        console.log('[processScan] Sending request to Rork Toolkit...');
+        
+        let completion: string;
+        try {
+          completion = await generateText({
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: prompt },
+                  { type: "image", image: base64Image }
+                ]
+              }
+            ]
+          });
+          console.log('[processScan] AI response received successfully');
+        } catch (aiError) {
+          console.error('[processScan] AI generation error:', aiError);
+          if (aiError instanceof Error) {
+            throw new Error(`AI processing failed: ${aiError.message}`);
+          }
+          throw new Error('AI processing failed with unknown error');
+        }
         
         console.log('[processScan] AI response received, length:', completion.length);
         
@@ -377,11 +402,20 @@ Analyze this math homework image:`;
         
       } catch (error) {
         console.error(`[processScan] Error attempt ${attempts}:`, error);
+        if (error instanceof Error) {
+          console.error(`[processScan] Error message:`, error.message);
+          console.error(`[processScan] Error stack:`, error.stack);
+        }
         
         if (attempts < MAX_RETRIES) {
-          console.log(`[processScan] Retrying in ${RETRY_DELAY}ms...`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          const delay = RETRY_DELAY * attempts;
+          console.log(`[processScan] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         } else {
+          console.error('[processScan] All attempts failed');
+          if (error instanceof Error) {
+            throw new Error(`Failed to process image after ${MAX_RETRIES} attempts: ${error.message}`);
+          }
           throw error;
         }
       }
