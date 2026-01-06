@@ -143,38 +143,72 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
       console.log("[MathScanProvider] Converting image to base64:", uri);
       console.log("[MathScanProvider] Platform:", Platform.OS);
       
+      if (!uri || uri.trim() === '') {
+        throw new Error("Invalid image URI: empty or undefined");
+      }
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Image conversion timeout")), 30000)
+      );
+      
       if (Platform.OS !== 'web') {
         try {
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const arrayBuffer = await blob.arrayBuffer();
-          const bytes = new Uint8Array(arrayBuffer);
-          let binary = '';
-          bytes.forEach((b) => binary += String.fromCharCode(b));
-          const base64 = btoa(binary);
-          console.log("[MathScanProvider] Base64 conversion successful (native)");
-          return base64;
+          const conversionPromise = (async () => {
+            const response = await fetch(uri);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch image: ${response.status}`);
+            }
+            const blob = await response.blob();
+            console.log("[MathScanProvider] Blob size:", blob.size, "bytes");
+            
+            if (blob.size === 0) {
+              throw new Error("Image file is empty");
+            }
+            
+            const arrayBuffer = await blob.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            bytes.forEach((b) => binary += String.fromCharCode(b));
+            const base64 = btoa(binary);
+            console.log("[MathScanProvider] Base64 conversion successful (native), length:", base64.length);
+            return base64;
+          })();
+          
+          return await Promise.race([conversionPromise, timeoutPromise]);
         } catch (fetchError) {
           console.error("[MathScanProvider] Fetch fallback failed:", fetchError);
-          throw fetchError;
+          throw new Error(`Image conversion failed: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
         }
       } else {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = reader.result as string;
-            console.log("Base64 conversion successful (web)");
-            resolve(base64.split(',')[1]);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
+        const conversionPromise = new Promise<string>((resolve, reject) => {
+          fetch(uri)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`Failed to fetch image: ${response.status}`);
+              }
+              return response.blob();
+            })
+            .then(blob => {
+              console.log("[MathScanProvider] Blob size:", blob.size, "bytes");
+              if (blob.size === 0) {
+                throw new Error("Image file is empty");
+              }
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64 = reader.result as string;
+                console.log("[MathScanProvider] Base64 conversion successful (web)");
+                resolve(base64.split(',')[1]);
+              };
+              reader.onerror = () => reject(new Error("FileReader error"));
+              reader.readAsDataURL(blob);
+            })
+            .catch(reject);
         });
+        
+        return await Promise.race([conversionPromise, timeoutPromise]);
       }
     } catch (error) {
-      console.error("Error converting image to base64:", error);
+      console.error("[MathScanProvider] Error converting image to base64:", error);
       throw error;
     }
   };
@@ -253,11 +287,21 @@ Return ONLY the JSON object, no other text.`
 
   const processScan = useCallback(async (imageUri: string): Promise<string> => {
     try {
+      console.log("[processScan] Starting scan process for:", imageUri);
+      
+      if (!imageUri) {
+        throw new Error("No image URI provided");
+      }
+      
+      console.log("[processScan] Converting image to base64...");
       const base64Image = await convertImageToBase64(imageUri);
+      console.log("[processScan] Base64 conversion complete. Length:", base64Image.length);
       
-      console.log("Analyzing image quality...");
+      console.log("[processScan] Analyzing image quality...");
       const imageQuality = await analyzeImageQuality(base64Image);
+      console.log("[processScan] Image quality:", imageQuality);
       
+      console.log("[processScan] Sending image to AI for analysis...");
       const response = await fetch("https://toolkit.rork.com/text/llm/", {
         method: "POST",
         headers: {
@@ -385,9 +429,12 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
       });
 
       if (!response.ok) {
-        throw new Error("Failed to process image");
+        const errorText = await response.text();
+        console.error("[processScan] API error response:", errorText);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
+      console.log("[processScan] Parsing AI response...");
       const data = await response.json();
       const completion = data.completion;
       
@@ -422,9 +469,14 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
       const updatedScans = [newScan, ...scans];
       await saveScans(updatedScans);
 
+      console.log("[processScan] Scan complete! ID:", scanId);
       return scanId;
     } catch (error) {
-      console.error("Error processing scan:", error);
+      console.error("[processScan] Error details:", error);
+      if (error instanceof Error) {
+        console.error("[processScan] Error message:", error.message);
+        console.error("[processScan] Error stack:", error.stack);
+      }
       throw error;
     }
   }, [scans, saveScans]);
