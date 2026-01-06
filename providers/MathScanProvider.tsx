@@ -228,6 +228,51 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     return true;
   }, []);
 
+  const checkNetworkConnectivity = async (): Promise<boolean> => {
+    try {
+      const state = await NetInfo.fetch();
+      console.log('[checkNetworkConnectivity] Network state:', state);
+      return state.isConnected === true && state.isInternetReachable !== false;
+    } catch (error) {
+      console.error('[checkNetworkConnectivity] Error checking network:', error);
+      return true;
+    }
+  };
+
+  const fetchWithTimeout = useCallback(async (url: string, options: RequestInit, timeout: number): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.log('[fetchWithTimeout] Request timeout, aborting...');
+      controller.abort();
+    }, timeout);
+    
+    try {
+      console.log('[fetchWithTimeout] Starting fetch to:', url);
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        mode: 'cors',
+        cache: 'no-cache',
+      });
+      clearTimeout(timeoutId);
+      console.log('[fetchWithTimeout] Fetch successful, status:', response.status);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('[fetchWithTimeout] Fetch failed:', error);
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error(`Request timeout after ${timeout / 1000}s`);
+        }
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error('Network error: Unable to reach the server. Please check your internet connection.');
+        }
+      }
+      throw error;
+    }
+  }, []);
+
   const convertImageToBase64 = useCallback(async (uri: string): Promise<string> => {
     let retries = 0;
     
@@ -383,15 +428,18 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     throw new Error('Failed to convert image');
   }, [validateImageUri]);
 
-  const analyzeImageQuality = async (base64Image: string): Promise<{ score: number; issues: string[] }> => {
+  const analyzeImageQuality = useCallback(async (base64Image: string): Promise<{ score: number; issues: string[] }> => {
     try {
-      const response = await fetch("https://toolkit.rork.com/text/llm/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [
+      console.log('[analyzeImageQuality] Starting quality analysis...');
+      const response = await fetchWithTimeout(
+        "https://toolkit.rork.com/text/llm/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messages: [
             {
               role: "system",
               content: `You are an image quality analyzer for math homework scanning. Analyze the image quality and return a JSON object with:
@@ -425,10 +473,13 @@ Return ONLY the JSON object, no other text.`
               ]
             }
           ]
-        }),
-      });
+          }),
+        },
+        15000
+      );
 
       if (!response.ok) {
+        console.warn('[analyzeImageQuality] Response not OK:', response.status);
         return { score: 50, issues: [] };
       }
 
@@ -450,38 +501,13 @@ Return ONLY the JSON object, no other text.`
       
       return { score: 50, issues: [] };
     } catch (error) {
-      console.error("Error analyzing image quality:", error);
+      console.error("[analyzeImageQuality] Error:", error);
+      if (error instanceof Error) {
+        console.error("[analyzeImageQuality] Error details:", error.message);
+      }
       return { score: 50, issues: [] };
     }
-  };
-
-  const checkNetworkConnectivity = async (): Promise<boolean> => {
-    try {
-      const state = await NetInfo.fetch();
-      console.log('[checkNetworkConnectivity] Network state:', state);
-      return state.isConnected === true && state.isInternetReachable !== false;
-    } catch (error) {
-      console.error('[checkNetworkConnectivity] Error checking network:', error);
-      return true;
-    }
-  };
-
-  const fetchWithTimeout = async (url: string, options: RequestInit, timeout: number): Promise<Response> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-  };
+  }, [fetchWithTimeout]);
 
   const processScan = useCallback(async (imageUri: string): Promise<string> => {
     let processingAttempts = 0;
@@ -494,7 +520,9 @@ Return ONLY the JSON object, no other text.`
           throw new Error("No image URI provided");
         }
         
+        console.log('[processScan] Checking network connectivity...');
         const isConnected = await checkNetworkConnectivity();
+        console.log('[processScan] Network connected:', isConnected);
         if (!isConnected) {
           throw new Error('No internet connection. Please check your network and try again.');
         }
@@ -508,10 +536,16 @@ Return ONLY the JSON object, no other text.`
         }
         
         console.log("[processScan] Analyzing image quality...");
-        const imageQuality = await analyzeImageQuality(base64Image);
-        console.log("[processScan] Image quality:", imageQuality);
+        let imageQuality: { score: number; issues: string[] } = { score: 50, issues: [] };
+        try {
+          imageQuality = await analyzeImageQuality(base64Image);
+          console.log("[processScan] Image quality:", imageQuality);
+        } catch (qualityError) {
+          console.warn('[processScan] Image quality analysis failed, continuing with default:', qualityError);
+        }
         
         console.log("[processScan] Sending image to AI for analysis...");
+        console.log('[processScan] API timeout set to:', API_TIMEOUT, 'ms');
         const response = await fetchWithTimeout(
           "https://toolkit.rork.com/text/llm/",
           {
@@ -719,14 +753,20 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
         if (processingAttempts < MAX_RETRIES) {
           const isNetworkError = error instanceof Error && 
             (error.message.includes('network') || 
+             error.message.includes('Network') ||
              error.message.includes('timeout') || 
              error.message.includes('fetch') ||
-             error.name === 'AbortError');
+             error.message.includes('Unable to reach') ||
+             error.name === 'AbortError' ||
+             error.name === 'TypeError');
           
           if (isNetworkError) {
-            console.log(`[processScan] Network error detected, retrying in ${RETRY_DELAY * processingAttempts}ms...`);
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * processingAttempts));
+            const delay = RETRY_DELAY * processingAttempts;
+            console.log(`[processScan] Network error detected, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
             continue;
+          } else {
+            console.error('[processScan] Non-network error, not retrying:', error);
           }
         }
         
@@ -736,7 +776,7 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
     }
     
     throw new Error('Failed to process scan after all attempts');
-  }, [scans, saveScans, convertImageToBase64]);
+  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality, fetchWithTimeout]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);
 
