@@ -210,13 +210,13 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     }
   }, []);
 
-  const validateImageUri = (uri: string): boolean => {
+  const validateImageUri = useCallback((uri: string): boolean => {
     if (!uri || uri.trim() === '') {
       console.error('[validateImageUri] Empty URI');
       return false;
     }
     
-    const validPrefixes = ['file://', 'http://', 'https://', 'content://', 'data:'];
+    const validPrefixes = ['file://', 'http://', 'https://', 'content://', 'data:', 'blob:'];
     const hasValidPrefix = validPrefixes.some(prefix => uri.startsWith(prefix));
     
     if (!hasValidPrefix) {
@@ -226,9 +226,9 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     
     console.log('[validateImageUri] URI valid');
     return true;
-  };
+  }, []);
 
-  const convertImageToBase64 = async (uri: string): Promise<string> => {
+  const convertImageToBase64 = useCallback(async (uri: string): Promise<string> => {
     let retries = 0;
     
     while (retries < MAX_RETRIES) {
@@ -329,7 +329,7 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     }
     
     throw new Error('Failed to convert image');
-  };
+  }, [validateImageUri]);
 
   const analyzeImageQuality = async (base64Image: string): Promise<{ score: number; issues: string[] }> => {
     try {
@@ -684,7 +684,7 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
     }
     
     throw new Error('Failed to process scan after all attempts');
-  }, [scans, saveScans]);
+  }, [scans, saveScans, convertImageToBase64]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);
 
