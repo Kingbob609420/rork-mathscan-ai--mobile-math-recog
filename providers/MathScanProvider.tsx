@@ -236,8 +236,17 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         console.log(`[convertImageToBase64] Attempt ${retries + 1}/${MAX_RETRIES} - Converting image:`, uri.substring(0, 100));
         console.log("[convertImageToBase64] Platform:", Platform.OS);
         
-        if (!validateImageUri(uri)) {
-          throw new Error("Invalid image URI format");
+        if (!uri || uri.trim() === '') {
+          throw new Error("Empty URI provided");
+        }
+        
+        if (uri.startsWith('data:image')) {
+          console.log('[convertImageToBase64] Already base64 data URI, extracting...');
+          const base64 = uri.split(',')[1];
+          if (base64 && base64.length > 100) {
+            return base64;
+          }
+          throw new Error('Invalid data URI format');
         }
         
         const timeoutPromise = new Promise<never>((_, reject) => 
@@ -246,6 +255,10 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         
         if (Platform.OS !== 'web') {
           try {
+            if (!validateImageUri(uri)) {
+              throw new Error("Invalid image URI format");
+            }
+            
             const conversionPromise = (async () => {
               const response = await fetch(uri);
               if (!response.ok) {
@@ -280,35 +293,73 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
             throw fetchError;
           }
         } else {
+          console.log('[convertImageToBase64] Web platform detected');
+          console.log('[convertImageToBase64] URI type:', uri.startsWith('blob:') ? 'blob' : uri.startsWith('http') ? 'http' : uri.startsWith('file:') ? 'file' : 'unknown');
+          
           const conversionPromise = new Promise<string>((resolve, reject) => {
+            const isBlobUrl = uri.startsWith('blob:');
+            console.log('[convertImageToBase64] Is blob URL:', isBlobUrl);
+            
+            if (isBlobUrl) {
+              console.log('[convertImageToBase64] Fetching blob URL:', uri);
+            }
+            
             fetch(uri)
               .then(response => {
+                console.log('[convertImageToBase64] Fetch response status:', response.status);
                 if (!response.ok) {
-                  throw new Error(`Failed to fetch image: ${response.status}`);
+                  throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
                 }
                 return response.blob();
               })
               .then(blob => {
-                console.log("[convertImageToBase64] Blob size:", blob.size, "bytes");
+                console.log("[convertImageToBase64] Blob received, size:", blob.size, "bytes, type:", blob.type);
                 if (blob.size === 0) {
-                  throw new Error("Image file is empty");
+                  throw new Error("Image file is empty (0 bytes)");
                 }
+                
+                if (!blob.type.startsWith('image/')) {
+                  console.warn('[convertImageToBase64] Blob type is not image:', blob.type);
+                }
+                
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                  const base64 = reader.result as string;
+                  const result = reader.result as string;
+                  if (!result) {
+                    reject(new Error("FileReader returned empty result"));
+                    return;
+                  }
+                  console.log("[convertImageToBase64] FileReader complete, result length:", result.length);
+                  const base64 = result.includes(',') ? result.split(',')[1] : result;
+                  console.log("[convertImageToBase64] Base64 length:", base64.length);
+                  if (base64.length < 100) {
+                    reject(new Error(`Base64 too short: ${base64.length} chars`));
+                    return;
+                  }
                   console.log("[convertImageToBase64] Base64 conversion successful (web)");
-                  resolve(base64.split(',')[1]);
+                  resolve(base64);
                 };
-                reader.onerror = () => reject(new Error("FileReader error"));
+                reader.onerror = (error) => {
+                  console.error('[convertImageToBase64] FileReader error:', error);
+                  reject(new Error("FileReader failed to read blob"));
+                };
+                reader.onabort = () => {
+                  console.error('[convertImageToBase64] FileReader aborted');
+                  reject(new Error("FileReader was aborted"));
+                };
+                console.log('[convertImageToBase64] Starting FileReader.readAsDataURL...');
                 reader.readAsDataURL(blob);
               })
-              .catch(reject);
+              .catch(error => {
+                console.error('[convertImageToBase64] Fetch/blob error:', error);
+                reject(error);
+              });
           });
           
           const result = await Promise.race([conversionPromise, timeoutPromise]);
           
           if (!result || result.length < 100) {
-            throw new Error('Base64 result is too short or empty');
+            throw new Error(`Base64 result invalid: length ${result?.length || 0}`);
           }
           
           console.log('[convertImageToBase64] Conversion successful (web)');
@@ -317,9 +368,10 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
       } catch (error) {
         retries++;
         console.error(`[convertImageToBase64] Error (attempt ${retries}/${MAX_RETRIES}):`, error);
+        console.error('[convertImageToBase64] Error details:', error instanceof Error ? error.message : String(error));
         
         if (retries < MAX_RETRIES) {
-          console.log(`[convertImageToBase64] Retrying in ${RETRY_DELAY}ms...`);
+          console.log(`[convertImageToBase64] Retrying in ${RETRY_DELAY * retries}ms...`);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retries));
         } else {
           console.error('[convertImageToBase64] All conversion attempts failed');
