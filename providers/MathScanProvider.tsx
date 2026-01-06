@@ -400,8 +400,13 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
   const analyzeImageQuality = useCallback(async (base64Image: string): Promise<{ score: number; issues: string[] }> => {
     try {
       console.log('[analyzeImageQuality] Starting quality analysis...');
+      console.log('[analyzeImageQuality] Toolkit URL:', process.env.EXPO_PUBLIC_TOOLKIT_URL);
       
-      const completion = await generateText({
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Quality analysis timeout after 30s')), 30000)
+      );
+      
+      const analysisPromise = generateText({
         messages: [
           {
             role: "user",
@@ -436,6 +441,8 @@ Analyze this image quality for math problem scanning:`
         ]
       });
       
+      const completion = await Promise.race([analysisPromise, timeoutPromise]);
+      
       try {
         const jsonMatch = completion.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -454,8 +461,9 @@ Analyze this image quality for math problem scanning:`
       console.error("[analyzeImageQuality] Error:", error);
       if (error instanceof Error) {
         console.error("[analyzeImageQuality] Error details:", error.message);
+        console.error("[analyzeImageQuality] Error stack:", error.stack);
       }
-      return { score: 50, issues: [] };
+      return { score: 50, issues: ['Quality analysis failed - continuing with default'] };
     }
   }, []);
 
@@ -496,6 +504,8 @@ Analyze this image quality for math problem scanning:`
         
         console.log("[processScan] Sending image to AI for analysis...");
         console.log('[processScan] API timeout set to:', API_TIMEOUT, 'ms');
+        console.log('[processScan] Toolkit URL:', process.env.EXPO_PUBLIC_TOOLKIT_URL);
+        console.log('[processScan] Base64 image length:', base64Image.length);
         
         const systemPrompt = `You are an advanced math problem analyzer specializing in arithmetic, algebra, and geometry. Analyze the image and identify all math problems.
 
@@ -597,7 +607,11 @@ Be honest about confidence. If handwriting is messy or text is unclear, lower th
 
 Important: Return ONLY the JSON array, no other text. Always include problemType, confidence, and qualityIssues.`;
         
-        const completion = await generateText({
+        const aiTimeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error(`AI analysis timeout after ${API_TIMEOUT}ms`)), API_TIMEOUT)
+        );
+        
+        const aiAnalysisPromise = generateText({
           messages: [
             {
               role: "user",
@@ -613,7 +627,16 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
               ]
             }
           ]
+        }).catch((err) => {
+          console.error('[processScan] generateText threw error:', err);
+          console.error('[processScan] Error type:', err?.constructor?.name);
+          console.error('[processScan] Error message:', err?.message);
+          throw new Error(`AI API failed: ${err?.message || 'Unknown error'}`);
         });
+        
+        console.log('[processScan] Waiting for AI response...');
+        const completion = await Promise.race([aiAnalysisPromise, aiTimeoutPromise]);
+        console.log('[processScan] AI response received!');
         
         console.log("[processScan] Parsing AI response...");
         console.log('[processScan] Completion length:', completion.length);
