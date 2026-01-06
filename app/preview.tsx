@@ -33,20 +33,59 @@ export default function PreviewScreen() {
   console.log('[Preview] Decoded imageUri:', imageUri);
 
   const handleConfirm = async () => {
-    if (!imageUri) return;
+    if (!imageUri) {
+      Alert.alert(
+        "Invalid Image",
+        "No image available to process. Please try again.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+      return;
+    }
 
     setProcessing(true);
     try {
+      console.log('[Preview] Starting scan processing...');
       const scanId = await processScan(imageUri);
-      router.replace(`/results/${scanId}` as any);
+      console.log('[Preview] Scan complete, navigating to results:', scanId);
+      
+      setTimeout(() => {
+        router.replace(`/results/${scanId}` as any);
+      }, 100);
     } catch (error) {
-      console.error("Error processing scan:", error);
+      console.error("[Preview] Error processing scan:", error);
+      
+      let errorMessage = "Failed to process the image. Please try again.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('internet')) {
+          errorMessage = "No internet connection. Please check your network and try again.";
+        } else if (error.message.includes('timeout')) {
+          errorMessage = "The request took too long. Please try again with better lighting.";
+        } else if (error.message.includes('Invalid image')) {
+          errorMessage = "The image appears to be invalid or corrupted. Please take a new photo.";
+        } else if (error.message.includes('conversion')) {
+          errorMessage = "Failed to process the image file. Please try taking a new photo.";
+        }
+      }
+      
       Alert.alert(
         "Processing Error",
-        "Failed to process the image. Please try again.",
-        [{ text: "OK" }]
+        errorMessage,
+        [
+          { 
+            text: "Retry", 
+            onPress: () => {
+              setProcessing(false);
+              setTimeout(() => handleConfirm(), 500);
+            }
+          },
+          { 
+            text: "Cancel", 
+            style: "cancel",
+            onPress: () => setProcessing(false)
+          }
+        ]
       );
-      setProcessing(false);
     }
   };
 
@@ -59,7 +98,14 @@ export default function PreviewScreen() {
   };
 
   const handleDownload = async () => {
-    if (!imageUri) return;
+    if (!imageUri) {
+      Alert.alert(
+        "No Image",
+        "No image available to download.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
 
     try {
       setDownloading(true);
@@ -120,11 +166,25 @@ export default function PreviewScreen() {
         );
       }
     } catch (error) {
-      console.error("Error downloading image:", error);
+      console.error("[Preview] Error downloading image:", error);
+      
+      let errorMessage = "Failed to save the image. Please try again.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('permission')) {
+          errorMessage = "Permission denied. Please enable photo library access in settings.";
+        } else if (error.message.includes('space')) {
+          errorMessage = "Not enough storage space. Please free up some space and try again.";
+        }
+      }
+      
       Alert.alert(
         "Download Error",
-        "Failed to save the image. Please try again.",
-        [{ text: "OK" }]
+        errorMessage,
+        [
+          { text: "Retry", onPress: () => setTimeout(() => handleDownload(), 500) },
+          { text: "Cancel", style: "cancel" }
+        ]
       );
     } finally {
       setDownloading(false);
@@ -173,12 +233,28 @@ export default function PreviewScreen() {
             source={{ uri: imageUri }}
             style={styles.image}
             resizeMode="contain"
-            onError={(e) => console.log('[Preview] Image load error:', e.nativeEvent.error)}
+            onError={(e) => {
+              console.error('[Preview] Image load error:', e.nativeEvent.error);
+              Alert.alert(
+                "Image Load Error",
+                "Failed to load the image. It may be corrupted.",
+                [
+                  { text: "Go Back", onPress: () => router.back() },
+                  { text: "Try Anyway", onPress: () => {} }
+                ]
+              );
+            }}
             onLoad={() => console.log('[Preview] Image loaded successfully')}
           />
         ) : (
           <View style={styles.noImageContainer}>
             <Text style={styles.noImageText}>No image to display</Text>
+            <TouchableOpacity
+              style={{ marginTop: 20, padding: 10, backgroundColor: '#333', borderRadius: 8 }}
+              onPress={() => router.back()}
+            >
+              <Text style={{ color: '#fff' }}>Go Back</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>

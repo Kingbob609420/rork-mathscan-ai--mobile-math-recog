@@ -26,18 +26,33 @@ export default function HomeScreen() {
   }, []);
 
   const checkOnboarding = async () => {
-    try {
-      console.log("[HomeScreen] Checking onboarding status...");
-      const seen = await AsyncStorage.getItem("hasSeenOnboarding");
-      console.log("[HomeScreen] Onboarding seen:", !!seen);
-      setHasSeenOnboarding(!!seen);
-      if (!seen) {
-        console.log("[HomeScreen] Navigating to onboarding");
-        router.push("/onboarding" as any);
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (retries < maxRetries) {
+      try {
+        console.log(`[HomeScreen] Checking onboarding status (attempt ${retries + 1}/${maxRetries})...`);
+        const seen = await AsyncStorage.getItem("hasSeenOnboarding");
+        console.log("[HomeScreen] Onboarding seen:", !!seen);
+        setHasSeenOnboarding(!!seen);
+        if (!seen) {
+          console.log("[HomeScreen] Navigating to onboarding");
+          setTimeout(() => {
+            router.push("/onboarding" as any);
+          }, 100);
+        }
+        return;
+      } catch (error) {
+        retries++;
+        console.error(`[HomeScreen] Error checking onboarding (attempt ${retries}/${maxRetries}):`, error);
+        
+        if (retries >= maxRetries) {
+          console.error('[HomeScreen] Failed to load onboarding status, defaulting to showing home');
+          setHasSeenOnboarding(true);
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
-    } catch (error) {
-      console.error("[HomeScreen] Error checking onboarding:", error);
-      setHasSeenOnboarding(true);
     }
   };
 
@@ -84,45 +99,89 @@ export default function HomeScreen() {
   };
 
   const handleUploadPress = async () => {
-    try {
-      setUploading(true);
-      
-      const ImagePicker = await import('expo-image-picker');
-      
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          "Permission Required",
-          "Sorry, we need camera roll permissions to upload photos. Please enable this in your device settings.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries < maxRetries) {
+      try {
+        setUploading(true);
+        console.log(`[HomeScreen] Opening image picker (attempt ${retries + 1}/${maxRetries})...`);
+        
+        const ImagePicker = await import('expo-image-picker');
+        
+        console.log('[HomeScreen] Requesting media library permissions...');
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        console.log('[HomeScreen] Permission status:', status);
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            "Permission Required",
+            "We need photo library access to upload images. Please enable this in your device settings.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Try Again", onPress: () => setTimeout(() => handleUploadPress(), 500) }
+            ]
+          );
+          return;
+        }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 1,
-        allowsMultipleSelection: false,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        console.log("Selected image:", result.assets[0].uri);
-        router.push({
-          pathname: "/preview" as any,
-          params: { imageUri: result.assets[0].uri },
+        console.log('[HomeScreen] Launching image library...');
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 1,
+          allowsMultipleSelection: false,
         });
+
+        if (result.canceled) {
+          console.log('[HomeScreen] User canceled image selection');
+          return;
+        }
+        
+        if (result.assets && result.assets[0] && result.assets[0].uri) {
+          const imageUri = result.assets[0].uri;
+          console.log("[HomeScreen] Selected image:", imageUri);
+          console.log("[HomeScreen] Image dimensions:", result.assets[0].width, 'x', result.assets[0].height);
+          
+          setTimeout(() => {
+            router.push({
+              pathname: "/preview" as any,
+              params: { imageUri: imageUri },
+            });
+          }, 100);
+          return;
+        } else {
+          throw new Error('Invalid image data received from picker');
+        }
+      } catch (error) {
+        retries++;
+        console.error(`[HomeScreen] Error selecting image (attempt ${retries}/${maxRetries}):`, error);
+        
+        if (retries >= maxRetries) {
+          let errorMessage = "Failed to select image. Please try again.";
+          
+          if (error instanceof Error) {
+            if (error.message.includes('permission')) {
+              errorMessage = "Permission denied. Please enable photo library access in settings.";
+            } else if (error.message.includes('canceled')) {
+              return;
+            }
+          }
+          
+          Alert.alert(
+            "Upload Error",
+            errorMessage,
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Try Again", onPress: () => setTimeout(() => handleUploadPress(), 500) }
+            ]
+          );
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } finally {
+        setUploading(false);
       }
-    } catch (error) {
-      console.error("Error selecting image:", error);
-      Alert.alert(
-        "Upload Error",
-        "Failed to select image. Please try again.",
-        [{ text: "OK" }]
-      );
-    } finally {
-      setUploading(false);
     }
   };
 

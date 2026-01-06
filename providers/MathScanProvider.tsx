@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import NetInfo from '@react-native-community/netinfo';
 
 type ProblemType = 'arithmetic' | 'algebra' | 'geometry' | 'other';
 
@@ -40,11 +41,15 @@ interface MathScanContextType {
   recentScans: Scan[];
   processScan: (imageUri: string) => Promise<string>;
   getScanById: (id: string) => Scan | undefined;
-  deleteScan: (id: string) => void;
+  deleteScan: (id: string) => Promise<void>;
   clearAllScans: () => Promise<void>;
 }
 
 const STORAGE_KEY = "mathscan_history";
+const STORAGE_BACKUP_KEY = "mathscan_history_backup";
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+const API_TIMEOUT = 45000;
 
 export const [MathScanProvider, useMathScan] = createContextHook<MathScanContextType>(() => {
   console.log("[MathScanProvider] Initializing provider...");
@@ -58,46 +63,99 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
   const [, _setInitialized] = useState(false);
 
   const saveScans = useCallback(async (newScans: Scan[]) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newScans));
-      setScans(newScans);
-    } catch (error) {
-      console.error("Error saving scans:", error);
+    let retries = 0;
+    while (retries < MAX_RETRIES) {
+      try {
+        const dataToSave = JSON.stringify(newScans);
+        
+        if (!dataToSave || dataToSave === 'null') {
+          console.error('[saveScans] Invalid data, skipping save');
+          return;
+        }
+        
+        await AsyncStorage.setItem(STORAGE_KEY, dataToSave);
+        await AsyncStorage.setItem(STORAGE_BACKUP_KEY, dataToSave);
+        setScans(newScans);
+        console.log('[saveScans] Successfully saved', newScans.length, 'scans');
+        return;
+      } catch (error) {
+        retries++;
+        console.error(`[saveScans] Error saving scans (attempt ${retries}/${MAX_RETRIES}):`, error);
+        if (retries < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        } else {
+          console.error('[saveScans] Failed to save after all retries');
+        }
+      }
     }
   }, []);
 
   const loadScans = useCallback(async () => {
-    try {
-      console.log("[MathScanProvider] Loading scans...");
-      
-      if (Platform.OS === 'web') {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsedScans = JSON.parse(stored);
-          console.log("[MathScanProvider] Loaded", parsedScans.length, "scans");
-          setScans(parsedScans);
-        } else {
-          console.log("[MathScanProvider] No scans found in storage");
-        }
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 100));
+    let retries = 0;
+    while (retries < MAX_RETRIES) {
+      try {
+        console.log("[MathScanProvider] Loading scans (attempt", retries + 1, "/", MAX_RETRIES, ")...");
         
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsedScans = JSON.parse(stored);
-          console.log("[MathScanProvider] Loaded", parsedScans.length, "scans");
-          setScans(parsedScans);
+        if (Platform.OS === 'web') {
+          let stored = await AsyncStorage.getItem(STORAGE_KEY);
+          
+          if (!stored) {
+            console.log('[MathScanProvider] Primary storage empty, trying backup...');
+            stored = await AsyncStorage.getItem(STORAGE_BACKUP_KEY);
+          }
+          
+          if (stored && stored !== 'null' && stored !== 'undefined') {
+            const parsedScans = JSON.parse(stored);
+            if (Array.isArray(parsedScans)) {
+              console.log("[MathScanProvider] Loaded", parsedScans.length, "scans");
+              setScans(parsedScans);
+            } else {
+              console.error('[MathScanProvider] Invalid scan data format');
+              setScans([]);
+            }
+          } else {
+            console.log("[MathScanProvider] No scans found in storage");
+            setScans([]);
+          }
         } else {
-          console.log("[MathScanProvider] No scans found in storage");
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          let stored = await AsyncStorage.getItem(STORAGE_KEY);
+          
+          if (!stored) {
+            console.log('[MathScanProvider] Primary storage empty, trying backup...');
+            stored = await AsyncStorage.getItem(STORAGE_BACKUP_KEY);
+          }
+          
+          if (stored && stored !== 'null' && stored !== 'undefined') {
+            const parsedScans = JSON.parse(stored);
+            if (Array.isArray(parsedScans)) {
+              console.log("[MathScanProvider] Loaded", parsedScans.length, "scans");
+              setScans(parsedScans);
+            } else {
+              console.error('[MathScanProvider] Invalid scan data format');
+              setScans([]);
+            }
+          } else {
+            console.log("[MathScanProvider] No scans found in storage");
+            setScans([]);
+          }
+        }
+        _setInitialized(true);
+        return;
+      } catch (error) {
+        retries++;
+        console.error(`[MathScanProvider] Error loading scans (attempt ${retries}/${MAX_RETRIES}):`, error);
+        console.error("[MathScanProvider] Error stack:", error instanceof Error ? error.stack : 'N/A');
+        
+        if (retries < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        } else {
+          console.error('[MathScanProvider] Failed to load after all retries, starting fresh');
+          setScans([]);
+          _setInitialized(true);
         }
       }
-      _setInitialized(true);
-    } catch (error) {
-      console.error("[MathScanProvider] Error loading scans:", error);
-      console.error("[MathScanProvider] Error stack:", error instanceof Error ? error.stack : 'N/A');
-      console.error("[MathScanProvider] Error name:", error instanceof Error ? error.name : 'N/A');
-      console.error("[MathScanProvider] Error message:", error instanceof Error ? error.message : 'N/A');
-      _setInitialized(true);
     }
   }, []);
 
@@ -126,91 +184,151 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     return scans.find(scan => scan.id === id);
   }, [scans]);
 
-  const deleteScan = useCallback((id: string) => {
-    const updatedScans = scans.filter(scan => scan.id !== id);
-    saveScans(updatedScans);
+  const deleteScan = useCallback(async (id: string) => {
+    try {
+      console.log('[deleteScan] Deleting scan:', id);
+      const updatedScans = scans.filter(scan => scan.id !== id);
+      await saveScans(updatedScans);
+      console.log('[deleteScan] Successfully deleted scan');
+    } catch (error) {
+      console.error('[deleteScan] Error deleting scan:', error);
+      throw error;
+    }
   }, [scans, saveScans]);
 
   const clearAllScans = useCallback(async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    setScans([]);
+    try {
+      console.log('[clearAllScans] Clearing all scans...');
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(STORAGE_BACKUP_KEY);
+      setScans([]);
+      console.log('[clearAllScans] Successfully cleared all scans');
+    } catch (error) {
+      console.error('[clearAllScans] Error clearing scans:', error);
+      setScans([]);
+      throw error;
+    }
   }, []);
 
-
+  const validateImageUri = (uri: string): boolean => {
+    if (!uri || uri.trim() === '') {
+      console.error('[validateImageUri] Empty URI');
+      return false;
+    }
+    
+    const validPrefixes = ['file://', 'http://', 'https://', 'content://', 'data:'];
+    const hasValidPrefix = validPrefixes.some(prefix => uri.startsWith(prefix));
+    
+    if (!hasValidPrefix) {
+      console.error('[validateImageUri] Invalid URI format:', uri.substring(0, 50));
+      return false;
+    }
+    
+    console.log('[validateImageUri] URI valid');
+    return true;
+  };
 
   const convertImageToBase64 = async (uri: string): Promise<string> => {
-    try {
-      console.log("[MathScanProvider] Converting image to base64:", uri);
-      console.log("[MathScanProvider] Platform:", Platform.OS);
-      
-      if (!uri || uri.trim() === '') {
-        throw new Error("Invalid image URI: empty or undefined");
-      }
-      
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("Image conversion timeout")), 30000)
-      );
-      
-      if (Platform.OS !== 'web') {
-        try {
-          const conversionPromise = (async () => {
-            const response = await fetch(uri);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch image: ${response.status}`);
-            }
-            const blob = await response.blob();
-            console.log("[MathScanProvider] Blob size:", blob.size, "bytes");
-            
-            if (blob.size === 0) {
-              throw new Error("Image file is empty");
-            }
-            
-            const arrayBuffer = await blob.arrayBuffer();
-            const bytes = new Uint8Array(arrayBuffer);
-            let binary = '';
-            bytes.forEach((b) => binary += String.fromCharCode(b));
-            const base64 = btoa(binary);
-            console.log("[MathScanProvider] Base64 conversion successful (native), length:", base64.length);
-            return base64;
-          })();
-          
-          return await Promise.race([conversionPromise, timeoutPromise]);
-        } catch (fetchError) {
-          console.error("[MathScanProvider] Fetch fallback failed:", fetchError);
-          throw new Error(`Image conversion failed: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+    let retries = 0;
+    
+    while (retries < MAX_RETRIES) {
+      try {
+        console.log(`[convertImageToBase64] Attempt ${retries + 1}/${MAX_RETRIES} - Converting image:`, uri.substring(0, 100));
+        console.log("[convertImageToBase64] Platform:", Platform.OS);
+        
+        if (!validateImageUri(uri)) {
+          throw new Error("Invalid image URI format");
         }
-      } else {
-        const conversionPromise = new Promise<string>((resolve, reject) => {
-          fetch(uri)
-            .then(response => {
+        
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("Image conversion timeout after 30s")), 30000)
+        );
+        
+        if (Platform.OS !== 'web') {
+          try {
+            const conversionPromise = (async () => {
+              const response = await fetch(uri);
               if (!response.ok) {
                 throw new Error(`Failed to fetch image: ${response.status}`);
               }
-              return response.blob();
-            })
-            .then(blob => {
-              console.log("[MathScanProvider] Blob size:", blob.size, "bytes");
+              const blob = await response.blob();
+              console.log("[convertImageToBase64] Blob size:", blob.size, "bytes");
+              
               if (blob.size === 0) {
                 throw new Error("Image file is empty");
               }
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const base64 = reader.result as string;
-                console.log("[MathScanProvider] Base64 conversion successful (web)");
-                resolve(base64.split(',')[1]);
-              };
-              reader.onerror = () => reject(new Error("FileReader error"));
-              reader.readAsDataURL(blob);
-            })
-            .catch(reject);
-        });
+              
+              const arrayBuffer = await blob.arrayBuffer();
+              const bytes = new Uint8Array(arrayBuffer);
+              let binary = '';
+              bytes.forEach((b) => binary += String.fromCharCode(b));
+              const base64 = btoa(binary);
+              console.log("[convertImageToBase64] Base64 conversion successful (native), length:", base64.length);
+              return base64;
+            })();
+            
+            const result = await Promise.race([conversionPromise, timeoutPromise]);
+            
+            if (!result || result.length < 100) {
+              throw new Error('Base64 result is too short or empty');
+            }
+            
+            console.log('[convertImageToBase64] Conversion successful (native)');
+            return result;
+          } catch (fetchError) {
+            console.error("[convertImageToBase64] Native conversion failed:", fetchError);
+            throw fetchError;
+          }
+        } else {
+          const conversionPromise = new Promise<string>((resolve, reject) => {
+            fetch(uri)
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error(`Failed to fetch image: ${response.status}`);
+                }
+                return response.blob();
+              })
+              .then(blob => {
+                console.log("[convertImageToBase64] Blob size:", blob.size, "bytes");
+                if (blob.size === 0) {
+                  throw new Error("Image file is empty");
+                }
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const base64 = reader.result as string;
+                  console.log("[convertImageToBase64] Base64 conversion successful (web)");
+                  resolve(base64.split(',')[1]);
+                };
+                reader.onerror = () => reject(new Error("FileReader error"));
+                reader.readAsDataURL(blob);
+              })
+              .catch(reject);
+          });
+          
+          const result = await Promise.race([conversionPromise, timeoutPromise]);
+          
+          if (!result || result.length < 100) {
+            throw new Error('Base64 result is too short or empty');
+          }
+          
+          console.log('[convertImageToBase64] Conversion successful (web)');
+          return result;
+        }
+      } catch (error) {
+        retries++;
+        console.error(`[convertImageToBase64] Error (attempt ${retries}/${MAX_RETRIES}):`, error);
         
-        return await Promise.race([conversionPromise, timeoutPromise]);
+        if (retries < MAX_RETRIES) {
+          console.log(`[convertImageToBase64] Retrying in ${RETRY_DELAY}ms...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retries));
+        } else {
+          console.error('[convertImageToBase64] All conversion attempts failed');
+          throw new Error(`Failed to convert image after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
       }
-    } catch (error) {
-      console.error("[MathScanProvider] Error converting image to base64:", error);
-      throw error;
     }
+    
+    throw new Error('Failed to convert image');
   };
 
   const analyzeImageQuality = async (base64Image: string): Promise<{ score: number; issues: string[] }> => {
@@ -285,33 +403,75 @@ Return ONLY the JSON object, no other text.`
     }
   };
 
-  const processScan = useCallback(async (imageUri: string): Promise<string> => {
+  const checkNetworkConnectivity = async (): Promise<boolean> => {
     try {
-      console.log("[processScan] Starting scan process for:", imageUri);
-      
-      if (!imageUri) {
-        throw new Error("No image URI provided");
-      }
-      
-      console.log("[processScan] Converting image to base64...");
-      const base64Image = await convertImageToBase64(imageUri);
-      console.log("[processScan] Base64 conversion complete. Length:", base64Image.length);
-      
-      console.log("[processScan] Analyzing image quality...");
-      const imageQuality = await analyzeImageQuality(base64Image);
-      console.log("[processScan] Image quality:", imageQuality);
-      
-      console.log("[processScan] Sending image to AI for analysis...");
-      const response = await fetch("https://toolkit.rork.com/text/llm/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "system",
-              content: `You are an advanced math problem analyzer specializing in arithmetic, algebra, and geometry. Analyze the image and identify all math problems.
+      const state = await NetInfo.fetch();
+      console.log('[checkNetworkConnectivity] Network state:', state);
+      return state.isConnected === true && state.isInternetReachable !== false;
+    } catch (error) {
+      console.error('[checkNetworkConnectivity] Error checking network:', error);
+      return true;
+    }
+  };
+
+  const fetchWithTimeout = async (url: string, options: RequestInit, timeout: number): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  };
+
+  const processScan = useCallback(async (imageUri: string): Promise<string> => {
+    let processingAttempts = 0;
+    
+    while (processingAttempts < MAX_RETRIES) {
+      try {
+        console.log(`[processScan] Starting scan process (attempt ${processingAttempts + 1}/${MAX_RETRIES}) for:`, imageUri);
+        
+        if (!imageUri || imageUri.trim() === '') {
+          throw new Error("No image URI provided");
+        }
+        
+        const isConnected = await checkNetworkConnectivity();
+        if (!isConnected) {
+          throw new Error('No internet connection. Please check your network and try again.');
+        }
+        
+        console.log("[processScan] Converting image to base64...");
+        const base64Image = await convertImageToBase64(imageUri);
+        console.log("[processScan] Base64 conversion complete. Length:", base64Image.length);
+        
+        if (!base64Image || base64Image.length < 100) {
+          throw new Error('Invalid base64 image data');
+        }
+        
+        console.log("[processScan] Analyzing image quality...");
+        const imageQuality = await analyzeImageQuality(base64Image);
+        console.log("[processScan] Image quality:", imageQuality);
+        
+        console.log("[processScan] Sending image to AI for analysis...");
+        const response = await fetchWithTimeout(
+          "https://toolkit.rork.com/text/llm/",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: "system",
+                  content: `You are an advanced math problem analyzer specializing in arithmetic, algebra, and geometry. Analyze the image and identify all math problems.
 
 For each problem, you must:
 1. Extract the problem text exactly as shown
@@ -410,75 +570,120 @@ IMPORTANT QUALITY FIELDS:
 Be honest about confidence. If handwriting is messy or text is unclear, lower the confidence and note the specific issues.
 
 Important: Return ONLY the JSON array, no other text. Always include problemType, confidence, and qualityIssues.`
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Analyze this math homework image and identify all problems:"
                 },
                 {
-                  type: "image",
-                  image: base64Image
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: "Analyze this math homework image and identify all problems:"
+                    },
+                    {
+                      type: "image",
+                      image: base64Image
+                    }
+                  ]
                 }
               ]
-            }
-          ]
-        }),
-      });
+            }),
+          },
+          API_TIMEOUT
+        );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[processScan] API error response:", errorText);
-        throw new Error(`API error: ${response.status} - ${errorText}`);
-      }
-
-      console.log("[processScan] Parsing AI response...");
-      const data = await response.json();
-      const completion = data.completion;
-      
-      let problems: MathProblem[] = [];
-      try {
-        const jsonMatch = completion.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          problems = JSON.parse(jsonMatch[0]);
-        } else {
-          problems = JSON.parse(completion);
-        }
-      } catch (parseError) {
-        console.error("Error parsing AI response:", parseError);
-        problems = [
-          {
-            problemText: "Unable to parse problems",
-            isCorrect: false,
-            explanation: "There was an error processing the image. Please try again."
+        if (!response.ok) {
+          let errorText = 'Unknown error';
+          try {
+            errorText = await response.text();
+          } catch (e) {
+            console.error('[processScan] Could not read error response:', e);
           }
-        ];
+          console.error("[processScan] API error response:", errorText);
+          throw new Error(`API error: ${response.status} - ${errorText}`);
+        }
+
+        console.log("[processScan] Parsing AI response...");
+        const data = await response.json();
+        
+        if (!data || !data.completion) {
+          throw new Error('Invalid API response: missing completion data');
+        }
+        
+        const completion = data.completion;
+        console.log('[processScan] Completion length:', completion.length);
+        
+        let problems: MathProblem[] = [];
+        try {
+          const jsonMatch = completion.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            problems = JSON.parse(jsonMatch[0]);
+          } else {
+            problems = JSON.parse(completion);
+          }
+          
+          if (!Array.isArray(problems) || problems.length === 0) {
+            throw new Error('No problems found in response');
+          }
+          
+          console.log('[processScan] Successfully parsed', problems.length, 'problems');
+        } catch (parseError) {
+          console.error("[processScan] Error parsing AI response:", parseError);
+          console.error('[processScan] Raw completion:', completion.substring(0, 200));
+          problems = [
+            {
+              problemText: "Unable to parse problems from image",
+              isCorrect: false,
+              explanation: "There was an error processing the AI response. The image may be unclear or contain no math problems.",
+              confidence: 0,
+              qualityIssues: ['AI response parsing failed']
+            }
+          ];
+        }
+
+        const scanId = Date.now().toString();
+        const newScan: Scan = {
+          id: scanId,
+          timestamp: Date.now(),
+          imageUri,
+          problems,
+          imageQuality,
+        };
+
+        console.log('[processScan] Saving scan to storage...');
+        const updatedScans = [newScan, ...scans];
+        await saveScans(updatedScans);
+
+        console.log("[processScan] Scan complete! ID:", scanId);
+        return scanId;
+      } catch (error) {
+        processingAttempts++;
+        console.error(`[processScan] Error (attempt ${processingAttempts}/${MAX_RETRIES}):`, error);
+        
+        if (error instanceof Error) {
+          console.error("[processScan] Error message:", error.message);
+          console.error("[processScan] Error stack:", error.stack);
+          console.error("[processScan] Error name:", error.name);
+        }
+        
+        if (processingAttempts < MAX_RETRIES) {
+          const isNetworkError = error instanceof Error && 
+            (error.message.includes('network') || 
+             error.message.includes('timeout') || 
+             error.message.includes('fetch') ||
+             error.name === 'AbortError');
+          
+          if (isNetworkError) {
+            console.log(`[processScan] Network error detected, retrying in ${RETRY_DELAY * processingAttempts}ms...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * processingAttempts));
+            continue;
+          }
+        }
+        
+        console.error('[processScan] All processing attempts failed');
+        throw error;
       }
-
-      const scanId = Date.now().toString();
-      const newScan: Scan = {
-        id: scanId,
-        timestamp: Date.now(),
-        imageUri,
-        problems,
-        imageQuality,
-      };
-
-      const updatedScans = [newScan, ...scans];
-      await saveScans(updatedScans);
-
-      console.log("[processScan] Scan complete! ID:", scanId);
-      return scanId;
-    } catch (error) {
-      console.error("[processScan] Error details:", error);
-      if (error instanceof Error) {
-        console.error("[processScan] Error message:", error.message);
-        console.error("[processScan] Error stack:", error.stack);
-      }
-      throw error;
     }
+    
+    throw new Error('Failed to process scan after all attempts');
   }, [scans, saveScans]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);

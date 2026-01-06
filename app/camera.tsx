@@ -46,9 +46,14 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
     console.log("[Camera] Component mounted");
     console.log("[Camera] Platform:", Platform.OS);
     
-    try {
-      const cameraModule = await import("expo-camera");
-      console.log("[Camera] Camera module loaded");
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (retries < maxRetries) {
+      try {
+        console.log(`[Camera] Loading camera module (attempt ${retries + 1}/${maxRetries})...`);
+        const cameraModule = await import("expo-camera");
+        console.log("[Camera] Camera module loaded");
       
       this.setState({
         CameraView: cameraModule.CameraView,
@@ -78,28 +83,50 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
           "We need camera access to scan math problems. You can also use the gallery option instead.",
           [
             {
-              text: "OK",
-              onPress: () => router.back(),
+              text: "Use Gallery",
+              onPress: () => router.replace('/(tabs)'),
+            },
+            {
+              text: "Try Again",
+              onPress: () => this.componentDidMount(),
             },
           ]
         );
       }
+      return;
     } catch (error) {
-      console.error("[Camera] Error:", error);
-      this.setState({
-        error: "Camera not available",
-      });
+      retries++;
+      console.error(`[Camera] Error (attempt ${retries}/${maxRetries}):`, error);
       
-      Alert.alert(
-        "Camera Error",
-        "Unable to access camera. Please use the gallery option instead.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      if (retries < maxRetries) {
+        console.log('[Camera] Retrying camera initialization...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        console.error("[Camera] All camera initialization attempts failed");
+        this.setState({
+          error: "Camera initialization failed after multiple attempts",
+        });
+        
+        Alert.alert(
+          "Camera Error",
+          "Unable to access camera after multiple attempts. Please use the gallery option instead.",
+          [
+            {
+              text: "Use Gallery",
+              onPress: () => router.replace('/(tabs)'),
+            },
+            {
+              text: "Try Again",
+              onPress: () => {
+                this.setState({ error: null, cameraLoaded: false });
+                this.componentDidMount();
+              },
+            },
+          ]
+        );
+        return;
+      }
+    }
     }
   }
 
@@ -118,23 +145,71 @@ class CameraScreenImpl extends Component<{ theme: any }, CameraState> {
   };
 
   takePicture = async () => {
-    if (this.cameraRef) {
+    if (!this.cameraRef) {
+      console.error('[Camera] Camera ref not available');
+      Alert.alert(
+        "Camera Not Ready",
+        "Camera is not ready yet. Please wait a moment and try again.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (retries < maxRetries) {
       try {
+        console.log(`[Camera] Taking picture (attempt ${retries + 1}/${maxRetries})...`);
+        
         const photo = await this.cameraRef.takePictureAsync({
           quality: 1,
           base64: false,
+          skipProcessing: false,
         });
         
+        if (!photo || !photo.uri) {
+          throw new Error('Photo capture returned invalid data');
+        }
+        
+        console.log('[Camera] Photo taken successfully');
+        console.log('[Camera] Photo URI:', photo.uri);
+        console.log('[Camera] Photo width:', photo.width, 'height:', photo.height);
+        
         const encodedUri = encodeURIComponent(photo.uri);
-        console.log('[Camera] Photo taken, URI:', photo.uri);
         console.log('[Camera] Encoded URI:', encodedUri);
+        
         router.push({
           pathname: "/preview" as any,
           params: { imageUri: encodedUri },
         });
+        return;
       } catch (error) {
-        console.error("Error taking picture:", error);
-        Alert.alert("Error", "Failed to take picture. Please try again.");
+        retries++;
+        console.error(`[Camera] Error taking picture (attempt ${retries}/${maxRetries}):`, error);
+        
+        if (retries < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+          let errorMessage = "Failed to take picture after multiple attempts.";
+          
+          if (error instanceof Error) {
+            if (error.message.includes('permission')) {
+              errorMessage = "Camera permission was revoked. Please enable camera access in settings.";
+            } else if (error.message.includes('busy')) {
+              errorMessage = "Camera is busy. Please wait a moment and try again.";
+            }
+          }
+          
+          Alert.alert(
+            "Camera Error",
+            errorMessage,
+            [
+              { text: "Try Again", onPress: () => this.takePicture() },
+              { text: "Cancel", style: "cancel" }
+            ]
+          );
+        }
       }
     }
   };
