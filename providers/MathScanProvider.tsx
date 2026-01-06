@@ -3,6 +3,7 @@ import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import NetInfo from '@react-native-community/netinfo';
+import { generateText } from "@rork-ai/toolkit-sdk";
 
 type ProblemType = 'arithmetic' | 'algebra' | 'geometry' | 'other';
 
@@ -239,39 +240,7 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     }
   };
 
-  const fetchWithTimeout = useCallback(async (url: string, options: RequestInit, timeout: number): Promise<Response> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.log('[fetchWithTimeout] Request timeout, aborting...');
-      controller.abort();
-    }, timeout);
-    
-    try {
-      console.log('[fetchWithTimeout] Starting fetch to:', url);
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-        mode: 'cors',
-        cache: 'no-cache',
-      });
-      clearTimeout(timeoutId);
-      console.log('[fetchWithTimeout] Fetch successful, status:', response.status);
-      return response;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      console.error('[fetchWithTimeout] Fetch failed:', error);
-      
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          throw new Error(`Request timeout after ${timeout / 1000}s`);
-        }
-        if (error.message.includes('Failed to fetch')) {
-          throw new Error('Network error: Unable to reach the server. Please check your internet connection.');
-        }
-      }
-      throw error;
-    }
-  }, []);
+
 
   const convertImageToBase64 = useCallback(async (uri: string): Promise<string> => {
     let retries = 0;
@@ -431,18 +400,15 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
   const analyzeImageQuality = useCallback(async (base64Image: string): Promise<{ score: number; issues: string[] }> => {
     try {
       console.log('[analyzeImageQuality] Starting quality analysis...');
-      const response = await fetchWithTimeout(
-        "https://toolkit.rork.com/text/llm/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages: [
-            {
-              role: "system",
-              content: `You are an image quality analyzer for math homework scanning. Analyze the image quality and return a JSON object with:
+      
+      const completion = await generateText({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `You are an image quality analyzer for math homework scanning. Analyze the image quality and return a JSON object with:
 {
   "score": 0-100 (100 being perfect quality),
   "issues": ["array of quality issues found"],
@@ -457,34 +423,18 @@ Evaluate:
 - Paper orientation and alignment
 - Presence of shadows or obstructions
 
-Return ONLY the JSON object, no other text.`
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Analyze this image quality for math problem scanning:"
-                },
-                {
-                  type: "image",
-                  image: base64Image
-                }
-              ]
-            }
-          ]
-          }),
-        },
-        15000
-      );
+Return ONLY the JSON object, no other text.
 
-      if (!response.ok) {
-        console.warn('[analyzeImageQuality] Response not OK:', response.status);
-        return { score: 50, issues: [] };
-      }
-
-      const data = await response.json();
-      const completion = data.completion;
+Analyze this image quality for math problem scanning:`
+              },
+              {
+                type: "image",
+                image: base64Image
+              }
+            ]
+          }
+        ]
+      });
       
       try {
         const jsonMatch = completion.match(/\{[\s\S]*\}/);
@@ -507,7 +457,7 @@ Return ONLY the JSON object, no other text.`
       }
       return { score: 50, issues: [] };
     }
-  }, [fetchWithTimeout]);
+  }, []);
 
   const processScan = useCallback(async (imageUri: string): Promise<string> => {
     let processingAttempts = 0;
@@ -546,18 +496,8 @@ Return ONLY the JSON object, no other text.`
         
         console.log("[processScan] Sending image to AI for analysis...");
         console.log('[processScan] API timeout set to:', API_TIMEOUT, 'ms');
-        const response = await fetchWithTimeout(
-          "https://toolkit.rork.com/text/llm/",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              messages: [
-                {
-                  role: "system",
-                  content: `You are an advanced math problem analyzer specializing in arithmetic, algebra, and geometry. Analyze the image and identify all math problems.
+        
+        const systemPrompt = `You are an advanced math problem analyzer specializing in arithmetic, algebra, and geometry. Analyze the image and identify all math problems.
 
 For each problem, you must:
 1. Extract the problem text exactly as shown
@@ -655,46 +595,27 @@ IMPORTANT QUALITY FIELDS:
 
 Be honest about confidence. If handwriting is messy or text is unclear, lower the confidence and note the specific issues.
 
-Important: Return ONLY the JSON array, no other text. Always include problemType, confidence, and qualityIssues.`
+Important: Return ONLY the JSON array, no other text. Always include problemType, confidence, and qualityIssues.`;
+        
+        const completion = await generateText({
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: systemPrompt + "\n\nAnalyze this math homework image and identify all problems:"
                 },
                 {
-                  role: "user",
-                  content: [
-                    {
-                      type: "text",
-                      text: "Analyze this math homework image and identify all problems:"
-                    },
-                    {
-                      type: "image",
-                      image: base64Image
-                    }
-                  ]
+                  type: "image",
+                  image: base64Image
                 }
               ]
-            }),
-          },
-          API_TIMEOUT
-        );
-
-        if (!response.ok) {
-          let errorText = 'Unknown error';
-          try {
-            errorText = await response.text();
-          } catch (e) {
-            console.error('[processScan] Could not read error response:', e);
-          }
-          console.error("[processScan] API error response:", errorText);
-          throw new Error(`API error: ${response.status} - ${errorText}`);
-        }
-
+            }
+          ]
+        });
+        
         console.log("[processScan] Parsing AI response...");
-        const data = await response.json();
-        
-        if (!data || !data.completion) {
-          throw new Error('Invalid API response: missing completion data');
-        }
-        
-        const completion = data.completion;
         console.log('[processScan] Completion length:', completion.length);
         
         let problems: MathProblem[] = [];
@@ -757,6 +678,7 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
              error.message.includes('timeout') || 
              error.message.includes('fetch') ||
              error.message.includes('Unable to reach') ||
+             error.message.toLowerCase().includes('connection') ||
              error.name === 'AbortError' ||
              error.name === 'TypeError');
           
@@ -776,7 +698,7 @@ Important: Return ONLY the JSON array, no other text. Always include problemType
     }
     
     throw new Error('Failed to process scan after all attempts');
-  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality, fetchWithTimeout]);
+  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);
 
