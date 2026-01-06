@@ -4,16 +4,12 @@ import {
   Text,
   View,
   TouchableOpacity,
-  Dimensions,
-  ScrollView,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Camera, CheckCircle, Sparkles, ArrowRight } from "lucide-react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const { width, height } = Dimensions.get("window");
 
 export default function OnboardingScreen() {
   const [currentPage, setCurrentPage] = useState(0);
