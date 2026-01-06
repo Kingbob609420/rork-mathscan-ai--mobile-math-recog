@@ -22,6 +22,17 @@
         "NSCameraUsageDescription": "MathScan AI uses your camera to capture photos of handwritten or printed math problems, equations, and worksheets. For example, you can photograph a math equation from your homework and the app will analyze it, solve it, and provide step-by-step explanations.",
         "NSMicrophoneUsageDescription": "MathScan AI uses your microphone to enable voice input when describing math problems. For example, you can speak a math question aloud instead of typing it.",
         "NSPhotoLibraryAddUsageDescription": "MathScan AI saves solved math problems and step-by-step solutions to your photo library. For example, you can save a solution image to review later or share with classmates."
+      },
+      "entitlements": {
+        "com": {
+          "apple": {
+            "developer": {
+              "networking": {
+                "wifi-info": true
+              }
+            }
+          }
+        }
       }
     },
     "android": {

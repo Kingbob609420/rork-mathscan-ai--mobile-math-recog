@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -21,16 +21,80 @@ const { width, height } = Dimensions.get("window");
 
 export default function PreviewScreen() {
   const { theme } = useTheme();
-  const { imageUri: rawImageUri } = useLocalSearchParams<{ imageUri: string }>();
+  const params = useLocalSearchParams<{ imageUri: string }>();
   const { processScan } = useMathScan();
   const [processing, setProcessing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [screenReady, setScreenReady] = useState(false);
 
-  // Decode the URI in case it was URL-encoded during navigation
-  const imageUri = rawImageUri ? decodeURIComponent(rawImageUri) : null;
-
+  console.log('[Preview] Full params:', JSON.stringify(params));
+  console.log('[Preview] params.imageUri:', params.imageUri);
+  console.log('[Preview] Type of params.imageUri:', typeof params.imageUri);
+  
+  const rawImageUri = params?.imageUri || params?.['imageUri'] || '';
   console.log('[Preview] Raw imageUri:', rawImageUri);
-  console.log('[Preview] Decoded imageUri:', imageUri);
+  
+  let imageUri: string | null = null;
+  try {
+    imageUri = rawImageUri ? decodeURIComponent(rawImageUri) : null;
+    console.log('[Preview] Decoded imageUri:', imageUri);
+  } catch (decodeError) {
+    console.error('[Preview] Error decoding URI:', decodeError);
+    imageUri = rawImageUri || null;
+    console.log('[Preview] Using raw URI as fallback:', imageUri);
+  }
+
+  useEffect(() => {
+    console.log('[Preview] Screen mounted');
+    console.log('[Preview] Final imageUri for rendering:', imageUri);
+    
+    const timer = setTimeout(() => {
+      setScreenReady(true);
+      console.log('[Preview] Screen ready state set to true');
+    }, 100);
+    
+    if (!imageUri) {
+      console.error('[Preview] No image URI available!');
+      setTimeout(() => {
+        Alert.alert(
+          "No Image",
+          "No image was provided. Please try taking a photo again.",
+          [
+            { text: "Go Back", onPress: () => router.back() },
+            { text: "Return Home", onPress: () => router.replace("/(tabs)") }
+          ]
+        );
+      }, 500);
+    }
+    
+    return () => clearTimeout(timer);
+  }, [imageUri]);
+
+  useEffect(() => {
+    if (imageUri && !imageLoaded && !imageError) {
+      const imageLoadTimeout = setTimeout(() => {
+        if (!imageLoaded && !imageError) {
+          console.warn('[Preview] Image taking too long to load');
+          setImageError(true);
+          Alert.alert(
+            "Image Load Timeout",
+            "The image is taking too long to load. Would you like to try again?",
+            [
+              { text: "Retry", onPress: () => {
+                setImageError(false);
+                setImageLoaded(false);
+              }},
+              { text: "Go Back", onPress: () => router.back() }
+            ]
+          );
+        }
+      }, 10000);
+      
+      return () => clearTimeout(imageLoadTimeout);
+    }
+  }, [imageUri, imageLoaded, imageError]);
 
   const handleConfirm = async () => {
     if (!imageUri) {
@@ -191,6 +255,15 @@ export default function PreviewScreen() {
     }
   };
 
+  if (!screenReady) {
+    return (
+      <View style={[styles.processingContainer, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={[styles.processingText, { color: theme.colors.textSecondary, marginTop: 20 }]}>Loading preview...</Text>
+      </View>
+    );
+  }
+
   if (processing) {
     return (
       <View style={[styles.processingContainer, { backgroundColor: theme.colors.background }]}>
@@ -229,23 +302,51 @@ export default function PreviewScreen() {
 
       <View style={styles.imageContainer}>
         {imageUri ? (
-          <Image
-            source={{ uri: imageUri }}
-            style={styles.image}
-            resizeMode="contain"
-            onError={(e) => {
-              console.error('[Preview] Image load error:', e.nativeEvent.error);
-              Alert.alert(
-                "Image Load Error",
-                "Failed to load the image. It may be corrupted.",
-                [
-                  { text: "Go Back", onPress: () => router.back() },
-                  { text: "Try Anyway", onPress: () => {} }
-                ]
-              );
-            }}
-            onLoad={() => console.log('[Preview] Image loaded successfully')}
-          />
+          <View style={styles.imageWrapper}>
+            {!imageLoaded && !imageError && (
+              <View style={styles.imageLoadingOverlay}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={[styles.imageLoadingText, { color: theme.colors.text }]}>
+                  Loading image...
+                </Text>
+              </View>
+            )}
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.image}
+              resizeMode="contain"
+              onLoadStart={() => {
+                console.log('[Preview] Image load started');
+                setImageLoaded(false);
+                setImageError(false);
+              }}
+              onLoad={(e) => {
+                console.log('[Preview] Image loaded successfully');
+                console.log('[Preview] Image dimensions:', e.nativeEvent.source);
+                setImageLoaded(true);
+                setImageError(false);
+              }}
+              onError={(e) => {
+                console.error('[Preview] Image load error:', e.nativeEvent.error);
+                console.error('[Preview] Failed URI:', imageUri);
+                setImageError(true);
+                setImageLoaded(false);
+                
+                Alert.alert(
+                  "Image Load Error",
+                  "Failed to load the image. The file may be corrupted or the path is invalid.",
+                  [
+                    { text: "Retry", onPress: () => {
+                      setImageError(false);
+                      setImageLoaded(false);
+                    }},
+                    { text: "Go Back", onPress: () => router.back() },
+                    { text: "Try Anyway", onPress: () => setImageError(false) }
+                  ]
+                );
+              }}
+            />
+          </View>
         ) : (
           <View style={styles.noImageContainer}>
             <Text style={styles.noImageText}>No image to display</Text>
@@ -332,9 +433,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
   },
+  imageWrapper: {
+    width: width - 40,
+    height: height * 0.6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   image: {
     width: width - 40,
     height: height * 0.6,
+  },
+  imageLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 10,
+  },
+  imageLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
   },
   bottomControls: {
     backgroundColor: "rgba(0, 0, 0, 0.8)",
