@@ -28,6 +28,7 @@ export default function PreviewScreen() {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [screenReady, setScreenReady] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   console.log('[Preview] Full params:', JSON.stringify(params));
   console.log('[Preview] params.imageUri:', params.imageUri);
@@ -303,7 +304,7 @@ export default function PreviewScreen() {
       <View style={styles.imageContainer}>
         {imageUri ? (
           <View style={styles.imageWrapper}>
-            {!imageLoaded && !imageError && (
+            {!imageLoaded && !imageError && !initialLoadComplete && (
               <View style={styles.imageLoadingOverlay}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
                 <Text style={[styles.imageLoadingText, { color: theme.colors.text }]}>
@@ -317,14 +318,17 @@ export default function PreviewScreen() {
               resizeMode="contain"
               onLoadStart={() => {
                 console.log('[Preview] Image load started');
-                setImageLoaded(false);
-                setImageError(false);
+                if (!initialLoadComplete) {
+                  setImageLoaded(false);
+                  setImageError(false);
+                }
               }}
               onLoad={(e) => {
                 console.log('[Preview] Image loaded successfully');
                 console.log('[Preview] Image dimensions:', e.nativeEvent.source);
                 setImageLoaded(true);
                 setImageError(false);
+                setInitialLoadComplete(true);
               }}
               onError={(e) => {
                 console.error('[Preview] Image load error:', e.nativeEvent.error);

@@ -294,7 +294,7 @@ export default function ResultsScreen() {
               </View>
             )}
 
-            {problem.steps && problem.steps.length > 0 && (
+            {problem.steps && Array.isArray(problem.steps) && problem.steps.length > 0 && (
               <View style={[styles.stepsContainer, { backgroundColor: theme.isDark ? theme.colors.surface : "#EFF6FF" }]}>
                 <Text style={[styles.stepsTitle, { color: theme.isDark ? theme.colors.primary : "#1E40AF" }]}>Step-by-step solution:</Text>
                 {problem.steps.map((step, stepIndex) => (
