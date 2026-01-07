@@ -375,6 +375,18 @@ Analyze this math homework image:`;
             throw new Error('No problems found');
           }
           
+          problems = problems.map(p => ({
+            ...p,
+            problemText: String(p.problemText || 'Unknown problem'),
+            isCorrect: Boolean(p.isCorrect),
+            steps: Array.isArray(p.steps) ? p.steps : (p.steps ? [String(p.steps)] : []),
+            qualityIssues: Array.isArray(p.qualityIssues) ? p.qualityIssues : [],
+            confidence: typeof p.confidence === 'number' ? p.confidence : undefined,
+            explanation: p.explanation ? String(p.explanation) : undefined,
+            userAnswer: p.userAnswer ? String(p.userAnswer) : undefined,
+            correctAnswer: p.correctAnswer ? String(p.correctAnswer) : undefined,
+          }));
+          
           console.log('[processScan] Parsed', problems.length, 'problems');
         } catch (parseError) {
           console.error('[processScan] Parse error:', parseError);
@@ -383,7 +395,8 @@ Analyze this math homework image:`;
             isCorrect: false,
             explanation: 'The image may be unclear or contain no math problems.',
             confidence: 0,
-            qualityIssues: ['Parsing failed']
+            qualityIssues: ['Parsing failed'],
+            steps: []
           }];
         }
 

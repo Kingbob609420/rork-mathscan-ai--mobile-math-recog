@@ -32,8 +32,9 @@ export default function HistoryScreen() {
   };
 
   const renderScanItem = ({ item }: { item: any }) => {
-    const correctCount = item.problems.filter((p: any) => p.isCorrect).length;
-    const totalCount = item.problems.length;
+    const safeProblems = Array.isArray(item.problems) ? item.problems : [];
+    const correctCount = safeProblems.filter((p: any) => p.isCorrect).length;
+    const totalCount = safeProblems.length;
     const accuracy = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
 
     return (
@@ -84,11 +85,11 @@ export default function HistoryScreen() {
           </View>
         </View>
 
-        {item.problems.length > 0 && (
+        {safeProblems.length > 0 && (
           <View style={[styles.problemPreview, { borderTopColor: theme.colors.borderLight }]}>
             <Text style={[styles.previewTitle, { color: theme.colors.textSecondary }]}>Problems:</Text>
             <Text style={[styles.previewText, { color: theme.colors.text }]} numberOfLines={2}>
-              {item.problems.map((p: any) => p.problemText).join(", ")}
+              {safeProblems.map((p: any) => p.problemText).join(", ")}
             </Text>
           </View>
         )}

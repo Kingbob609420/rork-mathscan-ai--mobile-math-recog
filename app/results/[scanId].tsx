@@ -45,9 +45,10 @@ export default function ResultsScreen() {
     );
   }
 
-  const correctCount = scan.problems.filter(p => p.isCorrect).length;
-  const accuracy = scan.problems.length > 0 
-    ? Math.round((correctCount / scan.problems.length) * 100)
+  const safeProblems = Array.isArray(scan.problems) ? scan.problems : [];
+  const correctCount = safeProblems.filter(p => p.isCorrect).length;
+  const accuracy = safeProblems.length > 0 
+    ? Math.round((correctCount / safeProblems.length) * 100)
     : 0;
 
   const getProblemTypeIcon = (type?: string) => {
@@ -91,8 +92,8 @@ export default function ResultsScreen() {
 
   const handleShare = async () => {
     try {
-      const message = `MathScan Results:\n${correctCount}/${scan.problems.length} correct (${accuracy}% accuracy)\n\nProblems:\n${
-        scan.problems.map(p => `${p.problemText}: ${p.isCorrect ? '✓' : '✗'}`).join('\n')
+      const message = `MathScan Results:\n${correctCount}/${safeProblems.length} correct (${accuracy}% accuracy)\n\nProblems:\n${
+        safeProblems.map(p => `${p.problemText}: ${p.isCorrect ? '✓' : '✗'}`).join('\n')
       }`;
       
       await Share.share({
@@ -141,7 +142,7 @@ export default function ResultsScreen() {
             </Text>
             {scan.imageQuality.issues.length > 0 && (
               <Text style={[styles.qualityWarningText, { color: theme.isDark ? "#FED7AA" : "#92400E" }]}>
-                {scan.imageQuality.issues.slice(0, 2).join(" • ")}
+                {(Array.isArray(scan.imageQuality.issues) ? scan.imageQuality.issues : []).slice(0, 2).join(" • ")}
               </Text>
             )}
           </View>
@@ -152,7 +153,7 @@ export default function ResultsScreen() {
         <Text style={[styles.summaryTitle, { color: theme.colors.text }]}>Scan Summary</Text>
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{scan.problems.length}</Text>
+            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{safeProblems.length}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total</Text>
           </View>
           <View style={styles.statItem}>
@@ -163,7 +164,7 @@ export default function ResultsScreen() {
           </View>
           <View style={styles.statItem}>
             <Text style={[styles.statNumber, { color: theme.colors.error }]}>
-              {scan.problems.length - correctCount}
+              {safeProblems.length - correctCount}
             </Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Incorrect</Text>
           </View>
@@ -206,7 +207,7 @@ export default function ResultsScreen() {
 
       <View style={styles.problemsContainer}>
         <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Problem Details</Text>
-        {scan.problems.map((problem, index) => (
+        {safeProblems.map((problem, index) => (
           <View
             key={index}
             style={[
@@ -271,7 +272,7 @@ export default function ResultsScreen() {
               </View>
             )}
             
-            {problem.qualityIssues && problem.qualityIssues.length > 0 && (
+            {Array.isArray(problem.qualityIssues) && problem.qualityIssues.length > 0 && (
               <View style={[styles.qualityIssuesContainer, { backgroundColor: theme.isDark ? "#78350F" : "#FEF3C7" }]}>
                 <View style={styles.qualityIssuesHeader}>
                   <AlertTriangle size={14} color={theme.isDark ? "#FCD34D" : "#D97706"} />
@@ -294,19 +295,23 @@ export default function ResultsScreen() {
               </View>
             )}
 
-            {problem.steps && Array.isArray(problem.steps) && problem.steps.length > 0 && (
-              <View style={[styles.stepsContainer, { backgroundColor: theme.isDark ? theme.colors.surface : "#EFF6FF" }]}>
-                <Text style={[styles.stepsTitle, { color: theme.isDark ? theme.colors.primary : "#1E40AF" }]}>Step-by-step solution:</Text>
-                {problem.steps.map((step, stepIndex) => (
-                  <View key={stepIndex} style={styles.stepItem}>
-                    <View style={[styles.stepNumber, { backgroundColor: theme.colors.primary }]}>
-                      <Text style={[styles.stepNumberText, { color: "#fff" }]}>{stepIndex + 1}</Text>
+            {(() => {
+              const steps = Array.isArray(problem.steps) ? problem.steps : [];
+              if (steps.length === 0) return null;
+              return (
+                <View style={[styles.stepsContainer, { backgroundColor: theme.isDark ? theme.colors.surface : "#EFF6FF" }]}>
+                  <Text style={[styles.stepsTitle, { color: theme.isDark ? theme.colors.primary : "#1E40AF" }]}>Step-by-step solution:</Text>
+                  {steps.map((step, stepIndex) => (
+                    <View key={stepIndex} style={styles.stepItem}>
+                      <View style={[styles.stepNumber, { backgroundColor: theme.colors.primary }]}>
+                        <Text style={[styles.stepNumberText, { color: "#fff" }]}>{stepIndex + 1}</Text>
+                      </View>
+                      <Text style={[styles.stepText, { color: theme.isDark ? theme.colors.text : "#1E40AF" }]}>{String(step)}</Text>
                     </View>
-                    <Text style={[styles.stepText, { color: theme.isDark ? theme.colors.text : "#1E40AF" }]}>{step}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+                  ))}
+                </View>
+              );
+            })()}
           </View>
         ))}
       </View>
