@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
-import { generateText } from "@rork-ai/toolkit-sdk";
+import { generateObject } from "@rork-ai/toolkit-sdk";
+import { z } from "zod";
 
 type ProblemType = 'arithmetic' | 'algebra' | 'geometry' | 'other';
 
@@ -305,7 +306,24 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         
         const imageQuality = await analyzeImageQuality(base64Image);
         
-        console.log('[processScan] Calling Rork AI...');
+        console.log('[processScan] Calling Rork AI with generateObject...');
+        
+        const mathProblemSchema = z.object({
+          problemText: z.string().describe("The math problem text from the image"),
+          userAnswer: z.string().optional().describe("The student's answer if visible"),
+          correctAnswer: z.string().optional().describe("The correct answer"),
+          isCorrect: z.boolean().describe("Whether the student's answer is correct"),
+          explanation: z.string().optional().describe("Explanation if answer is wrong"),
+          problemType: z.enum(['arithmetic', 'algebra', 'geometry', 'other']).optional().describe("Type of math problem"),
+          steps: z.array(z.string()).optional().describe("Solution steps"),
+          confidence: z.number().optional().describe("Confidence score 0-100"),
+          qualityIssues: z.array(z.string()).optional().describe("Image quality issues")
+        });
+        
+        const responseSchema = z.object({
+          problems: z.array(mathProblemSchema)
+        });
+        
         const prompt = `You are a math problem analyzer. Analyze this image and identify all math problems.
 
 For each problem:
@@ -318,29 +336,14 @@ For each problem:
 
 For ± answers (quadratics, square roots): Accept EITHER positive or negative as correct.
 
-Return ONLY a JSON array:
-[
-  {
-    "problemText": "2 + 3 = ?",
-    "userAnswer": "5",
-    "correctAnswer": "5",
-    "isCorrect": true,
-    "problemType": "arithmetic",
-    "explanation": null,
-    "steps": null,
-    "confidence": 95,
-    "qualityIssues": []
-  }
-]
-
 Analyze this math homework image:`;
         
         console.log('[processScan] Image base64 size:', base64Image.length);
         console.log('[processScan] Sending request to Rork Toolkit...');
         
-        let completion: string;
+        let result: z.infer<typeof responseSchema>;
         try {
-          completion = await generateText({
+          result = await generateObject({
             messages: [
               {
                 role: "user",
@@ -349,7 +352,8 @@ Analyze this math homework image:`;
                   { type: "image", image: base64Image }
                 ]
               }
-            ]
+            ],
+            schema: responseSchema
           });
           console.log('[processScan] AI response received successfully');
         } catch (aiError) {
@@ -360,45 +364,19 @@ Analyze this math homework image:`;
           throw new Error('AI processing failed with unknown error');
         }
         
-        console.log('[processScan] AI response received, length:', completion.length);
+        console.log('[processScan] Parsed', result.problems.length, 'problems');
         
-        let problems: MathProblem[] = [];
-        try {
-          const jsonMatch = completion.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            problems = JSON.parse(jsonMatch[0]);
-          } else {
-            problems = JSON.parse(completion);
-          }
-          
-          if (!Array.isArray(problems) || problems.length === 0) {
-            throw new Error('No problems found');
-          }
-          
-          problems = problems.map(p => ({
-            ...p,
-            problemText: String(p.problemText || 'Unknown problem'),
-            isCorrect: Boolean(p.isCorrect),
-            steps: Array.isArray(p.steps) ? p.steps : (p.steps ? [String(p.steps)] : []),
-            qualityIssues: Array.isArray(p.qualityIssues) ? p.qualityIssues : [],
-            confidence: typeof p.confidence === 'number' ? p.confidence : undefined,
-            explanation: p.explanation ? String(p.explanation) : undefined,
-            userAnswer: p.userAnswer ? String(p.userAnswer) : undefined,
-            correctAnswer: p.correctAnswer ? String(p.correctAnswer) : undefined,
-          }));
-          
-          console.log('[processScan] Parsed', problems.length, 'problems');
-        } catch (parseError) {
-          console.error('[processScan] Parse error:', parseError);
-          problems = [{
-            problemText: 'Unable to parse problems from image',
-            isCorrect: false,
-            explanation: 'The image may be unclear or contain no math problems.',
-            confidence: 0,
-            qualityIssues: ['Parsing failed'],
-            steps: []
-          }];
-        }
+        const problems: MathProblem[] = result.problems.map(p => ({
+          problemText: p.problemText,
+          userAnswer: p.userAnswer,
+          correctAnswer: p.correctAnswer,
+          isCorrect: p.isCorrect,
+          explanation: p.explanation,
+          problemType: p.problemType,
+          steps: p.steps || [],
+          confidence: p.confidence,
+          qualityIssues: p.qualityIssues || []
+        }));
 
         const scanId = Date.now().toString();
         const newScan: Scan = {
