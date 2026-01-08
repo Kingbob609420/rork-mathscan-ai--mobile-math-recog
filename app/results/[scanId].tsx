@@ -280,7 +280,7 @@ export default function ResultsScreen() {
                 </View>
                 {problem.qualityIssues.map((issue, issueIndex) => (
                   <Text key={issueIndex} style={[styles.qualityIssueText, { color: theme.isDark ? "#FDE68A" : "#92400E" }]}>
-                    {'• '}{issue}
+                    {`• ${issue}`}
                   </Text>
                 ))}
               </View>
