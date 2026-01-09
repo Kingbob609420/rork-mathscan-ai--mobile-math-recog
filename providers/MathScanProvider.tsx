@@ -287,6 +287,9 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
 
   const processScan = useCallback(async (imageUri: string): Promise<string> => {
     let attempts = 0;
+    let lastError: Error | null = null;
+    
+    console.log('[processScan] Starting scan process...');
     
     while (attempts < MAX_RETRIES) {
       attempts++;
@@ -307,6 +310,7 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         const imageQuality = await analyzeImageQuality(base64Image);
         
         console.log('[processScan] Calling Rork AI with generateObject...');
+        console.log('[processScan] Image base64 size:', base64Image.length);
         
         const mathProblemSchema = z.object({
           problemText: z.string().describe("The math problem text from the image"),
@@ -338,32 +342,22 @@ For ± answers (quadratics, square roots): Accept EITHER positive or negative as
 
 Analyze this math homework image:`;
         
-        console.log('[processScan] Image base64 size:', base64Image.length);
         console.log('[processScan] Sending request to Rork Toolkit...');
         
-        let result: z.infer<typeof responseSchema>;
-        try {
-          result = await generateObject({
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  { type: "image", image: base64Image }
-                ]
-              }
-            ],
-            schema: responseSchema
-          });
-          console.log('[processScan] AI response received successfully');
-        } catch (aiError) {
-          console.error('[processScan] AI generation error:', aiError);
-          if (aiError instanceof Error) {
-            throw new Error(`AI processing failed: ${aiError.message}`);
-          }
-          throw new Error('AI processing failed with unknown error');
-        }
+        const result = await generateObject({
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                { type: "image", image: base64Image }
+              ]
+            }
+          ],
+          schema: responseSchema
+        });
         
+        console.log('[processScan] AI response received successfully');
         console.log('[processScan] Parsed', result.problems.length, 'problems');
         
         const problems: MathProblem[] = result.problems.map(p => ({
@@ -393,26 +387,24 @@ Analyze this math homework image:`;
         
       } catch (error) {
         console.error(`[processScan] Error attempt ${attempts}:`, error);
-        if (error instanceof Error) {
-          console.error(`[processScan] Error message:`, error.message);
-          console.error(`[processScan] Error stack:`, error.stack);
-        }
+        lastError = error instanceof Error ? error : new Error(String(error));
         
         if (attempts < MAX_RETRIES) {
           const delay = RETRY_DELAY * attempts;
           console.log(`[processScan] Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
-        } else {
-          console.error('[processScan] All attempts failed');
-          if (error instanceof Error) {
-            throw new Error(`Failed to process image after ${MAX_RETRIES} attempts: ${error.message}`);
-          }
-          throw error;
         }
       }
     }
     
-    throw new Error('Failed to process scan');
+    console.error('[processScan] All attempts failed');
+    const errorMessage = lastError?.message || 'Unknown error';
+    
+    if (errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('Failed to fetch')) {
+      throw new Error('Unable to connect to the AI service. Please check your internet connection and try again.');
+    }
+    
+    throw new Error(`Failed to process image: ${errorMessage}`);
   }, [scans, saveScans, convertImageToBase64, analyzeImageQuality]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);
