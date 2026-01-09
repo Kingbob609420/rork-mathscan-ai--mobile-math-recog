@@ -211,41 +211,53 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
   }, []);
 
 
-  const resizeImageForAI = useCallback(async (base64: string, maxWidth: number = 1024): Promise<string> => {
-    if (Platform.OS === 'web') {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-          let width = img.width;
-          let height = img.height;
-          
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-          
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
+  const resizeImageForAI = useCallback(async (base64: string, maxWidth: number = 512): Promise<string> => {
+    return new Promise((resolve) => {
+      if (Platform.OS === 'web') {
+        try {
+          const img = new window.Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            
+            const maxDim = maxWidth;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = (height * maxDim) / width;
+                width = maxDim;
+              } else {
+                width = (width * maxDim) / height;
+                height = maxDim;
+              }
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(width);
+            canvas.height = Math.round(height);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(base64);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const resized = canvas.toDataURL('image/jpeg', 0.6);
+            const resizedBase64 = resized.split(',')[1];
+            console.log('[resizeImageForAI] Resized from', base64.length, 'to', resizedBase64.length);
+            resolve(resizedBase64);
+          };
+          img.onerror = () => {
+            console.warn('[resizeImageForAI] Failed to resize, using original');
             resolve(base64);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const resized = canvas.toDataURL('image/jpeg', 0.8);
-          const resizedBase64 = resized.split(',')[1];
-          console.log('[resizeImageForAI] Resized from', base64.length, 'to', resizedBase64.length);
-          resolve(resizedBase64);
-        };
-        img.onerror = () => {
-          console.warn('[resizeImageForAI] Failed to resize, using original');
+          };
+          img.src = `data:image/jpeg;base64,${base64}`;
+        } catch (e) {
+          console.warn('[resizeImageForAI] Error:', e);
           resolve(base64);
-        };
-        img.src = `data:image/jpeg;base64,${base64}`;
-      });
-    }
-    return base64;
+        }
+      } else {
+        resolve(base64);
+      }
+    });
   }, []);
 
   const convertImageToBase64 = useCallback(async (uri: string): Promise<string> => {
@@ -385,7 +397,11 @@ Analyze this math homework image:`;
         
         let result;
         try {
-          result = await generateObject({
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('AI request timed out after 60s')), 60000);
+          });
+          
+          const generatePromise = generateObject({
             messages: [
               {
                 role: "user",
@@ -397,12 +413,18 @@ Analyze this math homework image:`;
             ],
             schema: responseSchema
           });
+          
+          result = await Promise.race([generatePromise, timeoutPromise]);
         } catch (aiError) {
           console.error('[processScan] AI generation error:', aiError);
           const errorMsg = aiError instanceof Error ? aiError.message : String(aiError);
           console.error('[processScan] Error message:', errorMsg);
-          if (aiError instanceof Error && aiError.stack) {
-            console.error('[processScan] Error stack:', aiError.stack);
+          
+          if (errorMsg.includes('timed out')) {
+            throw new Error('The AI service is taking too long. Please try with a clearer image.');
+          }
+          if (errorMsg.includes('Failed to fetch') || errorMsg.includes('fetch')) {
+            throw new Error('Cannot reach AI service. Please check your connection and try again.');
           }
           throw new Error(`AI processing failed: ${errorMsg}`);
         }
