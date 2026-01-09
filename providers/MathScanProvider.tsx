@@ -401,6 +401,8 @@ Analyze this math homework image:`;
             setTimeout(() => reject(new Error('AI request timed out after 60s')), 60000);
           });
           
+          console.log('[processScan] Calling generateObject from toolkit...');
+          
           const generatePromise = generateObject({
             messages: [
               {
@@ -415,17 +417,22 @@ Analyze this math homework image:`;
           });
           
           result = await Promise.race([generatePromise, timeoutPromise]);
+          console.log('[processScan] generateObject completed successfully');
         } catch (aiError) {
           console.error('[processScan] AI generation error:', aiError);
           const errorMsg = aiError instanceof Error ? aiError.message : String(aiError);
           console.error('[processScan] Error message:', errorMsg);
+          console.error('[processScan] Error stack:', aiError instanceof Error ? aiError.stack : 'N/A');
           
           if (errorMsg.includes('timed out')) {
             throw new Error('The AI service is taking too long. Please try with a clearer image.');
           }
-          if (errorMsg.includes('Failed to fetch') || errorMsg.includes('fetch')) {
-            throw new Error('Cannot reach AI service. Please check your connection and try again.');
+          
+          if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('fetch')) {
+            console.log('[processScan] Network error detected, checking connectivity...');
+            throw new Error('Unable to connect to the AI service. Please check your internet connection and try again.');
           }
+          
           throw new Error(`AI processing failed: ${errorMsg}`);
         }
         

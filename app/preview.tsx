@@ -27,50 +27,34 @@ export default function PreviewScreen() {
   const [downloading, setDownloading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [screenReady, setScreenReady] = useState(false);
+  const [screenReady] = useState(true);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  console.log('[Preview] Full params:', JSON.stringify(params));
-  console.log('[Preview] params.imageUri:', params.imageUri);
-  console.log('[Preview] Type of params.imageUri:', typeof params.imageUri);
+  const rawImageUri = params?.imageUri || '';
   
-  const rawImageUri = params?.imageUri || params?.['imageUri'] || '';
-  console.log('[Preview] Raw imageUri:', rawImageUri);
-  
-  let imageUri: string | null = null;
-  try {
-    imageUri = rawImageUri ? decodeURIComponent(rawImageUri) : null;
-    console.log('[Preview] Decoded imageUri:', imageUri);
-  } catch (decodeError) {
-    console.error('[Preview] Error decoding URI:', decodeError);
-    imageUri = rawImageUri || null;
-    console.log('[Preview] Using raw URI as fallback:', imageUri);
-  }
+  const imageUri = (() => {
+    if (!rawImageUri) return null;
+    try {
+      return decodeURIComponent(rawImageUri);
+    } catch {
+      return rawImageUri;
+    }
+  })();
 
   useEffect(() => {
-    console.log('[Preview] Screen mounted');
-    console.log('[Preview] Final imageUri for rendering:', imageUri);
-    
-    const timer = setTimeout(() => {
-      setScreenReady(true);
-      console.log('[Preview] Screen ready state set to true');
-    }, 100);
+    console.log('[Preview] Screen mounted, imageUri:', imageUri?.substring(0, 50));
     
     if (!imageUri) {
       console.error('[Preview] No image URI available!');
-      setTimeout(() => {
-        Alert.alert(
-          "No Image",
-          "No image was provided. Please try taking a photo again.",
-          [
-            { text: "Go Back", onPress: () => router.back() },
-            { text: "Return Home", onPress: () => router.replace("/(tabs)") }
-          ]
-        );
-      }, 500);
+      Alert.alert(
+        "No Image",
+        "No image was provided. Please try taking a photo again.",
+        [
+          { text: "Go Back", onPress: () => router.back() },
+          { text: "Return Home", onPress: () => router.replace("/(tabs)") }
+        ]
+      );
     }
-    
-    return () => clearTimeout(timer);
   }, [imageUri]);
 
   useEffect(() => {
