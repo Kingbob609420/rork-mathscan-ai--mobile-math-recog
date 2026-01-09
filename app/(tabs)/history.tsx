@@ -89,7 +89,7 @@ export default function HistoryScreen() {
           <View style={[styles.problemPreview, { borderTopColor: theme.colors.borderLight }]}>
             <Text style={[styles.previewTitle, { color: theme.colors.textSecondary }]}>Problems:</Text>
             <Text style={[styles.previewText, { color: theme.colors.text }]} numberOfLines={2}>
-              {safeProblems.map((p: any) => p.problemText).join(", ")}
+              {safeProblems.map((p: any) => p.problemText || '').filter(Boolean).join(", ")}
             </Text>
           </View>
         )}
