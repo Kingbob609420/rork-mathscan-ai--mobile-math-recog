@@ -211,6 +211,43 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
   }, []);
 
 
+  const resizeImageForAI = useCallback(async (base64: string, maxWidth: number = 1024): Promise<string> => {
+    if (Platform.OS === 'web') {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+          
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(base64);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const resized = canvas.toDataURL('image/jpeg', 0.8);
+          const resizedBase64 = resized.split(',')[1];
+          console.log('[resizeImageForAI] Resized from', base64.length, 'to', resizedBase64.length);
+          resolve(resizedBase64);
+        };
+        img.onerror = () => {
+          console.warn('[resizeImageForAI] Failed to resize, using original');
+          resolve(base64);
+        };
+        img.src = `data:image/jpeg;base64,${base64}`;
+      });
+    }
+    return base64;
+  }, []);
+
   const convertImageToBase64 = useCallback(async (uri: string): Promise<string> => {
     console.log('[convertImageToBase64] Converting image:', uri.substring(0, 80));
     console.log('[convertImageToBase64] Platform:', Platform.OS);
@@ -232,7 +269,6 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
       
       const response = await fetch(uri, { 
         signal: controller.signal,
-        mode: 'cors',
         cache: 'no-cache'
       });
       clearTimeout(timeoutId);
@@ -312,6 +348,9 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         console.log('[processScan] Calling Rork AI with generateObject...');
         console.log('[processScan] Image base64 size:', base64Image.length);
         
+        const optimizedImage = await resizeImageForAI(base64Image);
+        console.log('[processScan] Optimized image size:', optimizedImage.length);
+        
         const mathProblemSchema = z.object({
           problemText: z.string().describe("The math problem text from the image"),
           userAnswer: z.string().optional().describe("The student's answer if visible"),
@@ -344,18 +383,29 @@ Analyze this math homework image:`;
         
         console.log('[processScan] Sending request to Rork Toolkit...');
         
-        const result = await generateObject({
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                { type: "image", image: base64Image }
-              ]
-            }
-          ],
-          schema: responseSchema
-        });
+        let result;
+        try {
+          result = await generateObject({
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: prompt },
+                  { type: "image", image: optimizedImage }
+                ]
+              }
+            ],
+            schema: responseSchema
+          });
+        } catch (aiError) {
+          console.error('[processScan] AI generation error:', aiError);
+          const errorMsg = aiError instanceof Error ? aiError.message : String(aiError);
+          console.error('[processScan] Error message:', errorMsg);
+          if (aiError instanceof Error && aiError.stack) {
+            console.error('[processScan] Error stack:', aiError.stack);
+          }
+          throw new Error(`AI processing failed: ${errorMsg}`);
+        }
         
         console.log('[processScan] AI response received successfully');
         console.log('[processScan] Parsed', result.problems.length, 'problems');
@@ -405,7 +455,7 @@ Analyze this math homework image:`;
     }
     
     throw new Error(`Failed to process image: ${errorMessage}`);
-  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality]);
+  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality, resizeImageForAI]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);
 
