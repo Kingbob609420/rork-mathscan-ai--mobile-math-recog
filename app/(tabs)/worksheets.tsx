@@ -239,13 +239,28 @@ Format the worksheet in a clear, printable format.`;
     setIsPrinting(true);
     try {
       const html = createWorksheetHTML(generatedWorksheet);
-      const { uri } = await Print.printToFileAsync({ html });
-      console.log('[Worksheets] PDF exported to:', uri);
       
-      await shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-      });
+      if (Platform.OS === 'web') {
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.print();
+        }
+        Alert.alert('Print Ready', 'Opening print dialog...');
+      } else {
+        const result = await Print.printToFileAsync({ html });
+        console.log('[Worksheets] PDF exported to:', result.uri);
+        
+        if (result.uri) {
+          await shareAsync(result.uri, {
+            UTI: '.pdf',
+            mimeType: 'application/pdf',
+          });
+        } else {
+          Alert.alert('Export Error', 'Unable to create PDF file.');
+        }
+      }
     } catch (error) {
       console.error('[Worksheets] Error exporting PDF:', error);
       Alert.alert('Export Error', 'Unable to export worksheet. Please try again.');
