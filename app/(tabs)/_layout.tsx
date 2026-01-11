@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Camera, History, Settings, Home } from "lucide-react-native";
+import { Camera, History, Settings, Home, FileText } from "lucide-react-native";
 import React from "react";
 import { Platform } from "react-native";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -47,6 +47,13 @@ export default function TabLayout() {
         options={{
           title: "History",
           tabBarIcon: ({ color }) => <History size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="worksheets"
+        options={{
+          title: "Worksheets",
+          tabBarIcon: ({ color }) => <FileText size={24} color={color} />,
         }}
       />
       <Tabs.Screen
