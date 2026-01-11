@@ -9,6 +9,7 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import {
   FileText,
@@ -17,9 +18,12 @@ import {
   BookOpen,
   GraduationCap,
   Download,
+  Printer,
 } from "lucide-react-native";
 import { useTheme } from "@/providers/ThemeProvider";
 import { generateText } from "@rork-ai/toolkit-sdk";
+import * as Print from "expo-print";
+import { shareAsync } from "expo-sharing";
 
 type DifficultyLevel = "beginner" | "intermediate" | "advanced";
 type WorksheetType = "practice" | "test" | "homework";
@@ -34,6 +38,7 @@ export default function WorksheetsScreen() {
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedWorksheet, setGeneratedWorksheet] = useState<string | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const externalResources = [
     {
@@ -162,6 +167,91 @@ Format the worksheet in a clear, printable format.`;
         style: "cancel",
       },
     ]);
+  };
+
+  const createWorksheetHTML = (content: string) => {
+    const formattedContent = content.replace(/\n/g, "<br>");
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body {
+              font-family: 'Arial', sans-serif;
+              padding: 40px;
+              max-width: 800px;
+              margin: 0 auto;
+              line-height: 1.6;
+            }
+            h1 {
+              color: #333;
+              border-bottom: 2px solid #4F46E5;
+              padding-bottom: 10px;
+            }
+            .problem {
+              margin: 20px 0;
+              padding: 10px;
+              background-color: #f9f9f9;
+              border-left: 3px solid #4F46E5;
+            }
+            .answer-key {
+              margin-top: 40px;
+              padding: 20px;
+              background-color: #f0f0f0;
+              border-radius: 5px;
+            }
+          </style>
+        </head>
+        <body>
+          ${formattedContent}
+        </body>
+      </html>
+    `;
+  };
+
+  const handlePrintWorksheet = async () => {
+    if (!generatedWorksheet) return;
+
+    setIsPrinting(true);
+    try {
+      const html = createWorksheetHTML(generatedWorksheet);
+      
+      if (Platform.OS === 'web') {
+        const { uri } = await Print.printToFileAsync({ html });
+        console.log('[Worksheets] PDF created at:', uri);
+        Alert.alert('PDF Ready', 'Your worksheet PDF has been created!');
+      } else {
+        await Print.printAsync({ html });
+      }
+    } catch (error) {
+      console.error('[Worksheets] Error printing:', error);
+      Alert.alert('Print Error', 'Unable to print worksheet. Please try again.');
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!generatedWorksheet) return;
+
+    setIsPrinting(true);
+    try {
+      const html = createWorksheetHTML(generatedWorksheet);
+      const { uri } = await Print.printToFileAsync({ html });
+      console.log('[Worksheets] PDF exported to:', uri);
+      
+      await shareAsync(uri, {
+        UTI: '.pdf',
+        mimeType: 'application/pdf',
+      });
+    } catch (error) {
+      console.error('[Worksheets] Error exporting PDF:', error);
+      Alert.alert('Export Error', 'Unable to export worksheet. Please try again.');
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   return (
@@ -304,6 +394,50 @@ Format the worksheet in a clear, printable format.`;
                 {generatedWorksheet}
               </Text>
             </ScrollView>
+            
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  styles.printButton,
+                  { backgroundColor: theme.colors.primary },
+                  isPrinting && styles.actionButtonDisabled,
+                ]}
+                onPress={handlePrintWorksheet}
+                disabled={isPrinting}
+              >
+                {isPrinting ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Printer size={18} color="#fff" />
+                    <Text style={styles.actionButtonText}>Print</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  styles.exportButton,
+                  { borderColor: theme.colors.primary },
+                  isPrinting && styles.actionButtonDisabled,
+                ]}
+                onPress={handleExportPDF}
+                disabled={isPrinting}
+              >
+                {isPrinting ? (
+                  <ActivityIndicator color={theme.colors.primary} size="small" />
+                ) : (
+                  <>
+                    <Download size={18} color={theme.colors.primary} />
+                    <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>
+                      Export PDF
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -467,5 +601,34 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 20,
+  },
+  actionButtons: {
+    flexDirection: "row" as const,
+    gap: 12,
+    marginTop: 16,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    padding: 14,
+    borderRadius: 10,
+    gap: 8,
+  },
+  printButton: {
+    backgroundColor: "#4F46E5",
+  },
+  exportButton: {
+    backgroundColor: "transparent" as const,
+    borderWidth: 2,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600" as const,
   },
 });
