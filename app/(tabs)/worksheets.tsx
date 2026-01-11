@@ -106,9 +106,8 @@ Please create a well-structured worksheet with:
 2. Instructions for the student
 3. ${problemCount} problems appropriate for the topic and difficulty level
 4. Space for work (indicate with "Work:" or similar)
-5. An answer key section at the end
 
-Format the worksheet in a clear, printable format.`;
+Format the worksheet in a clear, printable format. Do not include an answer key.`;
 
       console.log("[Worksheets] Generating worksheet with prompt:", prompt);
 
