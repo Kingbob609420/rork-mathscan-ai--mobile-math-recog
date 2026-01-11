@@ -178,34 +178,48 @@ Format the worksheet in a clear, printable format.`;
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
+            @page {
+              margin: 0.75in;
+              size: letter;
+            }
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
             body {
+              font-family: 'Times New Roman', Times, serif;
+              font-size: 12pt;
+              line-height: 1.8;
+              color: #000;
+              background: #fff;
+            }
+            .worksheet-container {
+              width: 100%;
+              min-height: 100vh;
+            }
+            h1, h2, h3 {
               font-family: 'Arial', sans-serif;
-              padding: 40px;
-              max-width: 800px;
-              margin: 0 auto;
-              line-height: 1.6;
+              margin: 0.5em 0;
             }
-            h1 {
-              color: #333;
-              border-bottom: 2px solid #4F46E5;
-              padding-bottom: 10px;
+            p {
+              margin: 0.5em 0;
             }
-            .problem {
-              margin: 20px 0;
-              padding: 10px;
-              background-color: #f9f9f9;
-              border-left: 3px solid #4F46E5;
-            }
-            .answer-key {
-              margin-top: 40px;
-              padding: 20px;
-              background-color: #f0f0f0;
-              border-radius: 5px;
+            @media print {
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              .worksheet-container {
+                width: 100%;
+              }
             }
           </style>
         </head>
         <body>
-          ${formattedContent}
+          <div class="worksheet-container">
+            ${formattedContent}
+          </div>
         </body>
       </html>
     `;
