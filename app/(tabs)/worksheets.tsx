@@ -326,7 +326,7 @@ Format the worksheet in a clear, printable format. Do not include an answer key.
         </Text>
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
+          showsHorizontalScrollIndicator={true}
           style={styles.categoriesScroll}
           contentContainerStyle={styles.categoriesContent}
         >
