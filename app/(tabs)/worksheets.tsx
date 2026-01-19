@@ -28,6 +28,33 @@ import { shareAsync } from "expo-sharing";
 type DifficultyLevel = "beginner" | "intermediate" | "advanced";
 type WorksheetType = "practice" | "test" | "homework";
 
+type PresetTopic = {
+  name: string;
+  category: string;
+  suggestedGrade?: string;
+};
+
+const PRESET_TOPICS: PresetTopic[] = [
+  { name: "Addition & Subtraction", category: "Elementary", suggestedGrade: "1st-3rd" },
+  { name: "Multiplication & Division", category: "Elementary", suggestedGrade: "3rd-5th" },
+  { name: "Fractions", category: "Elementary", suggestedGrade: "4th-6th" },
+  { name: "Decimals & Percentages", category: "Middle School", suggestedGrade: "5th-7th" },
+  { name: "Basic Algebra", category: "Middle School", suggestedGrade: "6th-8th" },
+  { name: "Linear Equations", category: "Middle School", suggestedGrade: "7th-9th" },
+  { name: "Quadratic Equations", category: "High School", suggestedGrade: "9th-10th" },
+  { name: "Polynomial Functions", category: "High School", suggestedGrade: "9th-11th" },
+  { name: "Trigonometry - Unit Circle", category: "Trigonometry", suggestedGrade: "10th-11th" },
+  { name: "Trigonometric Identities", category: "Trigonometry", suggestedGrade: "10th-12th" },
+  { name: "Sine & Cosine Graphs", category: "Trigonometry", suggestedGrade: "10th-12th" },
+  { name: "Trigonometric Equations", category: "Trigonometry", suggestedGrade: "11th-12th" },
+  { name: "Calculus - Limits", category: "Calculus", suggestedGrade: "11th-12th" },
+  { name: "Derivatives", category: "Calculus", suggestedGrade: "11th-12th" },
+  { name: "Integration", category: "Calculus", suggestedGrade: "12th+" },
+  { name: "Chain Rule & Product Rule", category: "Calculus", suggestedGrade: "12th+" },
+  { name: "Applications of Derivatives", category: "Calculus", suggestedGrade: "12th+" },
+  { name: "Definite Integrals", category: "Calculus", suggestedGrade: "12th+" },
+];
+
 export default function WorksheetsScreen() {
   const { theme } = useTheme();
   const [topic, setTopic] = useState("");
@@ -39,6 +66,19 @@ export default function WorksheetsScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedWorksheet, setGeneratedWorksheet] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const categories = Array.from(new Set(PRESET_TOPICS.map(t => t.category)));
+  const filteredTopics = selectedCategory
+    ? PRESET_TOPICS.filter(t => t.category === selectedCategory)
+    : PRESET_TOPICS;
+
+  const handleTopicSelect = (topic: PresetTopic) => {
+    setTopic(topic.name);
+    if (topic.suggestedGrade) {
+      setGradeLevel(topic.suggestedGrade);
+    }
+  };
 
   const externalResources = [
     {
@@ -278,6 +318,71 @@ Format the worksheet in a clear, printable format. Do not include an answer key.
         <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
           Generate custom worksheets for your child
         </Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          QUICK TOPICS
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoriesScroll}
+          contentContainerStyle={styles.categoriesContent}
+        >
+          <TouchableOpacity
+            style={[
+              styles.categoryChip,
+              { backgroundColor: !selectedCategory ? theme.colors.primary : theme.colors.card, borderColor: theme.colors.border },
+            ]}
+            onPress={() => setSelectedCategory(null)}
+          >
+            <Text style={[styles.categoryChipText, { color: !selectedCategory ? "#fff" : theme.colors.text }]}>
+              All
+            </Text>
+          </TouchableOpacity>
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.categoryChip,
+                { backgroundColor: selectedCategory === category ? theme.colors.primary : theme.colors.card, borderColor: theme.colors.border },
+              ]}
+              onPress={() => setSelectedCategory(category)}
+            >
+              <Text style={[styles.categoryChipText, { color: selectedCategory === category ? "#fff" : theme.colors.text }]}>
+                {category}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.topicsScroll}
+          contentContainerStyle={styles.topicsContent}
+        >
+          {filteredTopics.map((presetTopic, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.topicChip,
+                { backgroundColor: topic === presetTopic.name ? theme.colors.primaryLight : theme.colors.card, borderColor: theme.colors.border },
+              ]}
+              onPress={() => handleTopicSelect(presetTopic)}
+            >
+              <Text style={[styles.topicChipText, { color: theme.colors.text }]}>
+                {presetTopic.name}
+              </Text>
+              {presetTopic.suggestedGrade && (
+                <Text style={[styles.topicChipGrade, { color: theme.colors.textSecondary }]}>
+                  {presetTopic.suggestedGrade}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <View style={styles.section}>
@@ -615,6 +720,47 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 20,
+  },
+  categoriesScroll: {
+    marginBottom: 12,
+  },
+  categoriesContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+  },
+  categoryChipText: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+  },
+  topicsScroll: {
+    marginBottom: 8,
+  },
+  topicsContent: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  topicChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginRight: 8,
+    borderWidth: 1,
+    minWidth: 140,
+  },
+  topicChipText: {
+    fontSize: 15,
+    fontWeight: "600" as const,
+    marginBottom: 2,
+  },
+  topicChipGrade: {
+    fontSize: 12,
   },
   actionButtons: {
     flexDirection: "row" as const,
