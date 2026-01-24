@@ -8,7 +8,8 @@ import {
   Switch,
   Alert,
   Linking,
-  Platform,
+  TextInput,
+  Modal,
 } from "react-native";
 import {
   Bell,
@@ -21,21 +22,26 @@ import {
   ChevronRight,
   Zap,
   Key,
-  Server,
+  X,
+  Check,
 } from "lucide-react-native";
 import { useMathScan } from "@/providers/MathScanProvider";
 import { useTheme } from "@/providers/ThemeProvider";
-import { useAPISettings, APIProvider } from "@/providers/APISettingsProvider";
+import { useAPISettings } from "@/providers/APISettingsProvider";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 
 export default function SettingsScreen() {
   const { clearAllScans } = useMathScan();
   const { theme, themeMode, setThemeMode } = useTheme();
-  const { provider, apiKey, setProvider, setApiKey } = useAPISettings();
+  const { apiKey, setApiKey, isConfigured } = useAPISettings();
+  
   const [notifications, setNotifications] = React.useState(true);
   const [autoSave, setAutoSave] = React.useState(true);
-  const [showApiKey, setShowApiKey] = React.useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = React.useState(false);
+  const [tempApiKey, setTempApiKey] = React.useState("");
+  
   
   const hiMutation = trpc.example.hi.useMutation();
 
@@ -143,68 +149,34 @@ export default function SettingsScreen() {
     );
   };
 
-  const getProviderName = (p: APIProvider) => {
-    switch (p) {
-      case "openai": return "OpenAI (ChatGPT)";
-      case "deepseek": return "DeepSeek";
-      default: return "OpenAI (ChatGPT)";
+  const handleOpenApiKeyModal = () => {
+    setTempApiKey(apiKey);
+    setShowApiKeyModal(true);
+  };
+
+  const handleSaveApiKey = async () => {
+    try {
+      await setApiKey(tempApiKey);
+      setShowApiKeyModal(false);
+      Alert.alert("Success", "API key saved successfully");
+    } catch (error) {
+      Alert.alert("Error", "Failed to save API key");
     }
   };
 
-  const handleProviderPress = () => {
+  const handleClearApiKey = async () => {
     Alert.alert(
-      "AI Provider",
-      "Choose which AI service to use for worksheet generation.\n\nYou'll need your own API key.",
-      [
-        {
-          text: "OpenAI (ChatGPT)",
-          onPress: () => setProvider("openai"),
-        },
-        {
-          text: "DeepSeek",
-          onPress: () => setProvider("deepseek"),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ]
-    );
-  };
-
-  const handleApiKeyPress = () => {
-    Alert.prompt(
-      "API Key",
-      `Enter your ${provider === "openai" ? "OpenAI" : "DeepSeek"} API key.\n\nGet it from:\n${provider === "openai" ? "platform.openai.com/api-keys" : "platform.deepseek.com"}`,
+      "Clear API Key",
+      "Are you sure you want to remove your API key?",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Save",
-          onPress: (value: string | undefined) => {
-            if (value) {
-              setApiKey(value.trim());
-              Alert.alert("Saved", "API key has been saved securely.");
-            }
-          },
-        },
-      ],
-      "secure-text",
-      apiKey
-    );
-  };
-
-  const handleApiKeyPressAndroid = () => {
-    Alert.alert(
-      "API Key",
-      `Current: ${apiKey ? "••••" + apiKey.slice(-4) : "Not set"}\n\nTo change, clear and re-enter.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear Key",
+          text: "Clear",
           style: "destructive",
-          onPress: () => {
-            setApiKey("");
-            Alert.alert("Cleared", "API key has been removed.");
+          onPress: async () => {
+            await setApiKey("");
+            setTempApiKey("");
+            setShowApiKeyModal(false);
           },
         },
       ]
@@ -213,22 +185,15 @@ export default function SettingsScreen() {
 
   const settingsSections = [
     {
-      title: "AI Settings",
+      title: "API Configuration",
       items: [
         {
-          icon: <Server size={20} color={theme.colors.icon} />,
-          title: "AI Provider",
-          description: getProviderName(provider),
-          onPress: handleProviderPress,
+          icon: <Key size={20} color={isConfigured ? theme.colors.success : theme.colors.warning} />,
+          title: "OpenAI API Key",
+          description: isConfigured ? "Configured ✓" : "Required for scanning",
+          onPress: handleOpenApiKeyModal,
           action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
         },
-        ...([{
-          icon: <Key size={20} color={theme.colors.icon} />,
-          title: "API Key",
-          description: apiKey ? "••••" + apiKey.slice(-4) : "Not configured",
-          onPress: Platform.OS === "ios" ? handleApiKeyPress : handleApiKeyPressAndroid,
-          action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
-        }]),
       ],
     },
     {
@@ -371,6 +336,65 @@ export default function SettingsScreen() {
         <Text style={[styles.version, { color: theme.colors.textSecondary }]}>Version 1.0.0</Text>
         <Text style={[styles.copyright, { color: theme.colors.textSecondary }]}>© 2025 MathScan AI</Text>
       </View>
+
+      <Modal
+        visible={showApiKeyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowApiKeyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>OpenAI API Key</Text>
+              <TouchableOpacity onPress={() => setShowApiKeyModal(false)}>
+                <X size={24} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={[styles.modalDescription, { color: theme.colors.textSecondary }]}>
+              Enter your OpenAI API key to enable math scanning and worksheet generation. Get your key from platform.openai.com
+            </Text>
+            
+            <TextInput
+              style={[
+                styles.apiKeyInput,
+                {
+                  backgroundColor: theme.colors.background,
+                  color: theme.colors.text,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+              placeholder="sk-..."
+              placeholderTextColor={theme.colors.textSecondary}
+              value={tempApiKey}
+              onChangeText={setTempApiKey}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            
+            <View style={styles.modalButtons}>
+              {isConfigured && (
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.clearButton, { borderColor: theme.colors.error }]}
+                  onPress={handleClearApiKey}
+                >
+                  <Trash2 size={18} color={theme.colors.error} />
+                  <Text style={[styles.clearButtonText, { color: theme.colors.error }]}>Clear</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleSaveApiKey}
+              >
+                <Check size={18} color="#fff" />
+                <Text style={styles.saveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -455,5 +479,66 @@ const styles = StyleSheet.create({
   },
   copyright: {
     fontSize: 13,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600" as const,
+  },
+  modalDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  apiKeyInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row" as const,
+    justifyContent: "flex-end" as const,
+    gap: 12,
+  },
+  modalButton: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  clearButton: {
+    borderWidth: 1,
+  },
+  clearButtonText: {
+    fontSize: 15,
+    fontWeight: "500" as const,
+  },
+  saveButton: {},
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "500" as const,
   },
 });

@@ -140,9 +140,9 @@ export default function ResultsScreen() {
             <Text style={[styles.qualityWarningText, { color: theme.isDark ? "#FED7AA" : "#92400E" }]}>
               Quality Score: {scan.imageQuality.score}/100 - Results may be less accurate
             </Text>
-            {Array.isArray(scan.imageQuality.issues) && scan.imageQuality.issues.length > 0 && (
+            {Array.isArray(scan.imageQuality.issues) && scan.imageQuality.issues.filter(Boolean).length > 0 && (
               <Text style={[styles.qualityWarningText, { color: theme.isDark ? "#FED7AA" : "#92400E" }]}>
-                {scan.imageQuality.issues.filter(Boolean).slice(0, 2).join(" • ")}
+                {scan.imageQuality.issues.filter(issue => typeof issue === 'string' && issue.trim()).slice(0, 2).join(" • ")}
               </Text>
             )}
           </View>
@@ -272,15 +272,15 @@ export default function ResultsScreen() {
               </View>
             )}
             
-            {Array.isArray(problem.qualityIssues) && problem.qualityIssues.filter(Boolean).length > 0 && (
+            {Array.isArray(problem.qualityIssues) && problem.qualityIssues.filter(issue => typeof issue === 'string' && issue.trim()).length > 0 && (
               <View style={[styles.qualityIssuesContainer, { backgroundColor: theme.isDark ? "#78350F" : "#FEF3C7" }]}>
                 <View style={styles.qualityIssuesHeader}>
                   <AlertTriangle size={14} color={theme.isDark ? "#FCD34D" : "#D97706"} />
                   <Text style={[styles.qualityIssuesTitle, { color: theme.isDark ? "#FCD34D" : "#D97706" }]}>Quality Notes:</Text>
                 </View>
-                {problem.qualityIssues.filter(Boolean).map((issue, issueIndex) => (
+                {problem.qualityIssues.filter(issue => typeof issue === 'string' && issue.trim()).map((issue, issueIndex) => (
                   <Text key={issueIndex} style={[styles.qualityIssueText, { color: theme.isDark ? "#FDE68A" : "#92400E" }]}>
-                    {`• ${String(issue)}`}
+                    {`• ${String(issue).trim()}`}
                   </Text>
                 ))}
               </View>
@@ -296,7 +296,7 @@ export default function ResultsScreen() {
             )}
 
             {(() => {
-              const steps = Array.isArray(problem.steps) ? problem.steps.filter(Boolean) : [];
+              const steps = Array.isArray(problem.steps) ? problem.steps.filter(step => typeof step === 'string' && step.trim()) : [];
               if (steps.length === 0) return null;
               return (
                 <View style={[styles.stepsContainer, { backgroundColor: theme.isDark ? theme.colors.surface : "#EFF6FF" }]}>
@@ -306,7 +306,7 @@ export default function ResultsScreen() {
                       <View style={[styles.stepNumber, { backgroundColor: theme.colors.primary }]}>
                         <Text style={[styles.stepNumberText, { color: "#fff" }]}>{stepIndex + 1}</Text>
                       </View>
-                      <Text style={[styles.stepText, { color: theme.isDark ? theme.colors.text : "#1E40AF" }]}>{String(step || '')}</Text>
+                      <Text style={[styles.stepText, { color: theme.isDark ? theme.colors.text : "#1E40AF" }]}>{String(step).trim()}</Text>
                     </View>
                   ))}
                 </View>

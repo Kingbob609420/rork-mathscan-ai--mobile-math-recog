@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
-import { generateObject } from "@rork-ai/toolkit-sdk";
-import { z } from "zod";
+import { useAPISettings } from "./APISettingsProvider";
 
 type ProblemType = 'arithmetic' | 'algebra' | 'geometry' | 'other';
 
@@ -333,11 +332,17 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     return { score: 75, issues: [] };
   }, []);
 
+  const { apiKey } = useAPISettings();
+
   const processScan = useCallback(async (imageUri: string): Promise<string> => {
     let attempts = 0;
     let lastError: Error | null = null;
     
     console.log('[processScan] Starting scan process...');
+    
+    if (!apiKey) {
+      throw new Error('Please configure your OpenAI API key in Settings to scan math problems.');
+    }
     
     while (attempts < MAX_RETRIES) {
       attempts++;
@@ -357,27 +362,11 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         
         const imageQuality = await analyzeImageQuality(base64Image);
         
-        console.log('[processScan] Calling Rork AI with generateObject...');
+        console.log('[processScan] Calling OpenAI ChatGPT...');
         console.log('[processScan] Image base64 size:', base64Image.length);
         
         const optimizedImage = await resizeImageForAI(base64Image);
         console.log('[processScan] Optimized image size:', optimizedImage.length);
-        
-        const mathProblemSchema = z.object({
-          problemText: z.string().describe("The math problem text from the image"),
-          userAnswer: z.string().optional().describe("The student's answer if visible"),
-          correctAnswer: z.string().optional().describe("The correct answer"),
-          isCorrect: z.boolean().describe("Whether the student's answer is correct"),
-          explanation: z.string().optional().describe("Explanation if answer is wrong"),
-          problemType: z.enum(['arithmetic', 'algebra', 'geometry', 'other']).optional().describe("Type of math problem"),
-          steps: z.array(z.string()).optional().describe("Solution steps"),
-          confidence: z.number().optional().describe("Confidence score 0-100"),
-          qualityIssues: z.array(z.string()).optional().describe("Image quality issues")
-        });
-        
-        const responseSchema = z.object({
-          problems: z.array(mathProblemSchema)
-        });
         
         const prompt = `You are a math problem analyzer. Analyze this image and identify all math problems.
 
@@ -391,33 +380,77 @@ For each problem:
 
 For ± answers (quadratics, square roots): Accept EITHER positive or negative as correct.
 
+Respond ONLY with valid JSON in this exact format:
+{
+  "problems": [
+    {
+      "problemText": "the math problem",
+      "userAnswer": "student answer or null",
+      "correctAnswer": "correct answer",
+      "isCorrect": true or false,
+      "explanation": "explanation if wrong or null",
+      "problemType": "arithmetic" or "algebra" or "geometry" or "other",
+      "steps": ["step 1", "step 2"],
+      "confidence": 0-100
+    }
+  ]
+}
+
 Analyze this math homework image:`;
         
-        console.log('[processScan] Sending request to Rork Toolkit...');
+        console.log('[processScan] Sending request to OpenAI...');
         
-        let result;
+        let result: { problems: Array<{ problemText: string; userAnswer?: string; correctAnswer?: string; isCorrect: boolean; explanation?: string; problemType?: ProblemType; steps?: string[]; confidence?: number; qualityIssues?: string[] }> };
         try {
           const timeoutPromise = new Promise<never>((_, reject) => {
             setTimeout(() => reject(new Error('AI request timed out after 60s')), 60000);
           });
           
-          console.log('[processScan] Calling generateObject from toolkit...');
+          console.log('[processScan] Calling OpenAI gpt-4o...');
           
-          const generatePromise = generateObject({
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  { type: "image", image: optimizedImage }
-                ]
-              }
-            ],
-            schema: responseSchema
+          const generatePromise = fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: prompt },
+                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${optimizedImage}` } }
+                  ]
+                }
+              ],
+              max_tokens: 4000,
+              temperature: 0.3,
+            }),
+          }).then(async (response) => {
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              console.error('[processScan] OpenAI API error:', errorData);
+              throw new Error(errorData.error?.message || `API request failed: ${response.status}`);
+            }
+            return response.json();
+          }).then((data) => {
+            const content = data.choices?.[0]?.message?.content;
+            if (!content) {
+              throw new Error('No content in API response');
+            }
+            console.log('[processScan] Raw response:', content.substring(0, 500));
+            
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+              throw new Error('Could not parse JSON from response');
+            }
+            return JSON.parse(jsonMatch[0]);
           });
           
           result = await Promise.race([generatePromise, timeoutPromise]);
-          console.log('[processScan] generateObject completed successfully');
+          console.log('[processScan] OpenAI completed successfully');
         } catch (aiError) {
           console.error('[processScan] AI generation error:', aiError);
           const errorMsg = aiError instanceof Error ? aiError.message : String(aiError);
@@ -437,7 +470,11 @@ Analyze this math homework image:`;
         }
         
         console.log('[processScan] AI response received successfully');
-        console.log('[processScan] Parsed', result.problems.length, 'problems');
+        console.log('[processScan] Parsed', result.problems?.length || 0, 'problems');
+        
+        if (!result.problems || !Array.isArray(result.problems)) {
+          result = { problems: [] };
+        }
         
         const problems: MathProblem[] = result.problems.map(p => ({
           problemText: p.problemText,
@@ -484,7 +521,7 @@ Analyze this math homework image:`;
     }
     
     throw new Error(`Failed to process image: ${errorMessage}`);
-  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality, resizeImageForAI]);
+  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality, resizeImageForAI, apiKey]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);
 

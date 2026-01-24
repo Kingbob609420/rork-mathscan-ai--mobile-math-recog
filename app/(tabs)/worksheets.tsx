@@ -57,7 +57,7 @@ const PRESET_TOPICS: PresetTopic[] = [
 
 export default function WorksheetsScreen() {
   const { theme } = useTheme();
-  const { generateWithCustomAPI, provider, isConfigured } = useAPISettings();
+  const { generateWithAI, isConfigured } = useAPISettings();
   const [topic, setTopic] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [difficulty, setDifficulty] = useState<DifficultyLevel>("intermediate");
@@ -151,7 +151,6 @@ Please create a well-structured worksheet with:
 Format the worksheet in a clear, printable format. Do not include an answer key.`;
 
       console.log("[Worksheets] Generating worksheet with prompt:", prompt);
-      console.log("[Worksheets] Using provider:", provider);
 
       if (!isConfigured) {
         Alert.alert(
@@ -161,7 +160,7 @@ Format the worksheet in a clear, printable format. Do not include an answer key.
         return;
       }
 
-      const result = await generateWithCustomAPI(prompt);
+      const result = await generateWithAI(prompt);
 
       console.log("[Worksheets] Worksheet generated successfully");
       setGeneratedWorksheet(result);

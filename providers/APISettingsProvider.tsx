@@ -1,108 +1,67 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_SETTINGS_KEY = "api_settings";
-
-export type APIProvider = "openai" | "deepseek";
-
-interface APISettings {
-  provider: APIProvider;
-  apiKey: string;
-}
+const API_KEY_STORAGE_KEY = "openai_api_key";
 
 interface APISettingsContextType {
-  provider: APIProvider;
-  apiKey: string;
   isConfigured: boolean;
-  setProvider: (provider: APIProvider) => void;
-  setApiKey: (key: string) => void;
-  clearSettings: () => void;
-  generateWithCustomAPI: (prompt: string) => Promise<string>;
+  apiKey: string;
+  setApiKey: (key: string) => Promise<void>;
+  generateWithAI: (prompt: string) => Promise<string>;
 }
 
-const DEFAULT_SETTINGS: APISettings = {
-  provider: "openai",
-  apiKey: "",
-};
-
 export const [APISettingsProvider, useAPISettings] = createContextHook<APISettingsContextType>(() => {
-  const [settings, setSettings] = useState<APISettings>(DEFAULT_SETTINGS);
+  const [apiKey, setApiKeyState] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadSettings = useCallback(async () => {
-    try {
-      const stored = await AsyncStorage.getItem(API_SETTINGS_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as APISettings;
-        // Migrate old "builtin" provider to "openai"
-        if ((parsed.provider as string) === "builtin") {
-          parsed.provider = "openai";
-          await AsyncStorage.setItem(API_SETTINGS_KEY, JSON.stringify(parsed));
-        }
-        setSettings(parsed);
-      }
-    } catch (error) {
-      console.error("[APISettings] Error loading settings:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    const loadApiKey = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
+        if (stored) {
+          setApiKeyState(stored);
+          console.log("[APISettings] Loaded API key from storage");
+        }
+      } catch (error) {
+        console.error("[APISettings] Error loading API key:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadApiKey();
+  }, []);
 
-  const saveSettings = useCallback(async (newSettings: APISettings) => {
+  const setApiKey = useCallback(async (key: string) => {
     try {
-      await AsyncStorage.setItem(API_SETTINGS_KEY, JSON.stringify(newSettings));
-      setSettings(newSettings);
+      if (key.trim()) {
+        await AsyncStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
+      } else {
+        await AsyncStorage.removeItem(API_KEY_STORAGE_KEY);
+      }
+      setApiKeyState(key.trim());
+      console.log("[APISettings] API key saved");
     } catch (error) {
-      console.error("[APISettings] Error saving settings:", error);
+      console.error("[APISettings] Error saving API key:", error);
+      throw error;
     }
   }, []);
 
-  const setProvider = useCallback((provider: APIProvider) => {
-    const newSettings = { ...settings, provider };
-    saveSettings(newSettings);
-  }, [settings, saveSettings]);
-
-  const setApiKey = useCallback((apiKey: string) => {
-    const newSettings = { ...settings, apiKey };
-    saveSettings(newSettings);
-  }, [settings, saveSettings]);
-
-  const clearSettings = useCallback(() => {
-    saveSettings(DEFAULT_SETTINGS);
-  }, [saveSettings]);
-
-  const isConfigured = useMemo(() => {
-    return settings.apiKey.trim().length > 0;
-  }, [settings]);
-
-  const generateWithCustomAPI = useCallback(async (prompt: string): Promise<string> => {
-    const { provider, apiKey } = settings;
-
+  const generateWithAI = useCallback(async (prompt: string): Promise<string> => {
     if (!apiKey) {
-      throw new Error("API key not configured");
+      throw new Error("Please configure your OpenAI API key in Settings to use this feature.");
     }
 
-    const endpoint = provider === "openai" 
-      ? "https://api.openai.com/v1/chat/completions"
-      : "https://api.deepseek.com/chat/completions";
+    console.log("[AI] Generating with ChatGPT (gpt-4o-mini)");
 
-    const model = provider === "openai" ? "gpt-4o-mini" : "deepseek-chat";
-
-    console.log(`[APISettings] Generating with ${provider} using model ${model}`);
-
-    const response = await fetch(endpoint, {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model,
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
@@ -116,7 +75,7 @@ export const [APISettingsProvider, useAPISettings] = createContextHook<APISettin
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[APISettings] API error:", errorData);
+      console.error("[AI] API error:", errorData);
       throw new Error(errorData.error?.message || `API request failed: ${response.status}`);
     }
 
@@ -127,17 +86,16 @@ export const [APISettingsProvider, useAPISettings] = createContextHook<APISettin
       throw new Error("No content in API response");
     }
 
-    console.log("[APISettings] Generation successful");
+    console.log("[AI] Generation successful");
     return content;
-  }, [settings]);
+  }, [apiKey]);
+
+  const isConfigured = useMemo(() => !isLoading && apiKey.length > 0, [isLoading, apiKey]);
 
   return useMemo(() => ({
-    provider: settings.provider,
-    apiKey: settings.apiKey,
     isConfigured,
-    setProvider,
+    apiKey,
     setApiKey,
-    clearSettings,
-    generateWithCustomAPI,
-  }), [settings, isConfigured, setProvider, setApiKey, clearSettings, generateWithCustomAPI]);
+    generateWithAI,
+  }), [isConfigured, apiKey, setApiKey, generateWithAI]);
 });
