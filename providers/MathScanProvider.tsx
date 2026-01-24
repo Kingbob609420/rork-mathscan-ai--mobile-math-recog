@@ -424,7 +424,7 @@ Analyze this math homework image:`;
                 role: 'user',
                 content: [
                   { type: 'text', text: prompt },
-                  { type: 'image', image: `data:image/jpeg;base64,${optimizedImage}` }
+                  { type: 'image', image: optimizedImage }
                 ]
               }
             ],
