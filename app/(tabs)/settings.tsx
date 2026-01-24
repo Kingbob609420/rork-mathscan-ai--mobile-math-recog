@@ -184,7 +184,7 @@ export default function SettingsScreen() {
         { text: "Cancel", style: "cancel" },
         {
           text: "Save",
-          onPress: (value) => {
+          onPress: (value: string | undefined) => {
             if (value) {
               setApiKey(value.trim());
               Alert.alert("Saved", "API key has been saved securely.");
