@@ -147,6 +147,7 @@ export default function SettingsScreen() {
     switch (p) {
       case "openai": return "OpenAI (ChatGPT)";
       case "deepseek": return "DeepSeek";
+      default: return "OpenAI (ChatGPT)";
     }
   };
 

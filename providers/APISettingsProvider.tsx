@@ -35,6 +35,11 @@ export const [APISettingsProvider, useAPISettings] = createContextHook<APISettin
       const stored = await AsyncStorage.getItem(API_SETTINGS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as APISettings;
+        // Migrate old "builtin" provider to "openai"
+        if ((parsed.provider as string) === "builtin") {
+          parsed.provider = "openai";
+          await AsyncStorage.setItem(API_SETTINGS_KEY, JSON.stringify(parsed));
+        }
         setSettings(parsed);
       }
     } catch (error) {
