@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_SETTINGS_KEY = "api_settings";
 
-export type APIProvider = "rork" | "openai" | "deepseek";
+export type APIProvider = "openai" | "deepseek";
 
 interface APISettings {
   provider: APIProvider;
@@ -22,7 +22,7 @@ interface APISettingsContextType {
 }
 
 const DEFAULT_SETTINGS: APISettings = {
-  provider: "rork",
+  provider: "openai",
   apiKey: "",
 };
 
@@ -72,17 +72,11 @@ export const [APISettingsProvider, useAPISettings] = createContextHook<APISettin
   }, [saveSettings]);
 
   const isConfigured = useMemo(() => {
-    if (settings.provider === "rork") return true;
     return settings.apiKey.trim().length > 0;
   }, [settings]);
 
   const generateWithCustomAPI = useCallback(async (prompt: string): Promise<string> => {
     const { provider, apiKey } = settings;
-
-    if (provider === "rork") {
-      const { generateText } = await import("@rork-ai/toolkit-sdk");
-      return generateText(prompt);
-    }
 
     if (!apiKey) {
       throw new Error("API key not configured");

@@ -145,8 +145,7 @@ export default function SettingsScreen() {
 
   const getProviderName = (p: APIProvider) => {
     switch (p) {
-      case "rork": return "Built-in (Rork)";
-      case "openai": return "OpenAI";
+      case "openai": return "OpenAI (ChatGPT)";
       case "deepseek": return "DeepSeek";
     }
   };
@@ -154,14 +153,10 @@ export default function SettingsScreen() {
   const handleProviderPress = () => {
     Alert.alert(
       "AI Provider",
-      "Choose which AI service to use for worksheet generation.\n\nBuilt-in uses your app's credits.\nOpenAI/DeepSeek use your own API key.",
+      "Choose which AI service to use for worksheet generation.\n\nYou'll need your own API key.",
       [
         {
-          text: "Built-in (Rork)",
-          onPress: () => setProvider("rork"),
-        },
-        {
-          text: "OpenAI",
+          text: "OpenAI (ChatGPT)",
           onPress: () => setProvider("openai"),
         },
         {
@@ -226,13 +221,13 @@ export default function SettingsScreen() {
           onPress: handleProviderPress,
           action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
         },
-        ...(provider !== "rork" ? [{
+        ...([{
           icon: <Key size={20} color={theme.colors.icon} />,
           title: "API Key",
           description: apiKey ? "••••" + apiKey.slice(-4) : "Not configured",
           onPress: Platform.OS === "ios" ? handleApiKeyPress : handleApiKeyPressAndroid,
           action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
-        }] : []),
+        }]),
       ],
     },
     {
