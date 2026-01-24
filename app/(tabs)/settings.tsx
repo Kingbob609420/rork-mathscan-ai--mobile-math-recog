@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   Linking,
+  Platform,
 } from "react-native";
 import {
   Bell,
@@ -19,17 +20,22 @@ import {
   Trash2,
   ChevronRight,
   Zap,
+  Key,
+  Server,
 } from "lucide-react-native";
 import { useMathScan } from "@/providers/MathScanProvider";
 import { useTheme } from "@/providers/ThemeProvider";
+import { useAPISettings, APIProvider } from "@/providers/APISettingsProvider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 
 export default function SettingsScreen() {
   const { clearAllScans } = useMathScan();
   const { theme, themeMode, setThemeMode } = useTheme();
+  const { provider, apiKey, setProvider, setApiKey } = useAPISettings();
   const [notifications, setNotifications] = React.useState(true);
   const [autoSave, setAutoSave] = React.useState(true);
+  const [showApiKey, setShowApiKey] = React.useState(false);
   
   const hiMutation = trpc.example.hi.useMutation();
 
@@ -137,7 +143,98 @@ export default function SettingsScreen() {
     );
   };
 
+  const getProviderName = (p: APIProvider) => {
+    switch (p) {
+      case "rork": return "Built-in (Rork)";
+      case "openai": return "OpenAI";
+      case "deepseek": return "DeepSeek";
+    }
+  };
+
+  const handleProviderPress = () => {
+    Alert.alert(
+      "AI Provider",
+      "Choose which AI service to use for worksheet generation.\n\nBuilt-in uses your app's credits.\nOpenAI/DeepSeek use your own API key.",
+      [
+        {
+          text: "Built-in (Rork)",
+          onPress: () => setProvider("rork"),
+        },
+        {
+          text: "OpenAI",
+          onPress: () => setProvider("openai"),
+        },
+        {
+          text: "DeepSeek",
+          onPress: () => setProvider("deepseek"),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
+  const handleApiKeyPress = () => {
+    Alert.prompt(
+      "API Key",
+      `Enter your ${provider === "openai" ? "OpenAI" : "DeepSeek"} API key.\n\nGet it from:\n${provider === "openai" ? "platform.openai.com/api-keys" : "platform.deepseek.com"}`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: (value) => {
+            if (value) {
+              setApiKey(value.trim());
+              Alert.alert("Saved", "API key has been saved securely.");
+            }
+          },
+        },
+      ],
+      "secure-text",
+      apiKey
+    );
+  };
+
+  const handleApiKeyPressAndroid = () => {
+    Alert.alert(
+      "API Key",
+      `Current: ${apiKey ? "••••" + apiKey.slice(-4) : "Not set"}\n\nTo change, clear and re-enter.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear Key",
+          style: "destructive",
+          onPress: () => {
+            setApiKey("");
+            Alert.alert("Cleared", "API key has been removed.");
+          },
+        },
+      ]
+    );
+  };
+
   const settingsSections = [
+    {
+      title: "AI Settings",
+      items: [
+        {
+          icon: <Server size={20} color={theme.colors.icon} />,
+          title: "AI Provider",
+          description: getProviderName(provider),
+          onPress: handleProviderPress,
+          action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
+        },
+        ...(provider !== "rork" ? [{
+          icon: <Key size={20} color={theme.colors.icon} />,
+          title: "API Key",
+          description: apiKey ? "••••" + apiKey.slice(-4) : "Not configured",
+          onPress: Platform.OS === "ios" ? handleApiKeyPress : handleApiKeyPressAndroid,
+          action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
+        }] : []),
+      ],
+    },
     {
       title: "Preferences",
       items: [

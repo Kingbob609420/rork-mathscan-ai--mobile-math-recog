@@ -6,6 +6,7 @@ import { View, Text, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { MathScanProvider } from "@/providers/MathScanProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
+import { APISettingsProvider } from "@/providers/APISettingsProvider";
 import { trpc, trpcClient } from "@/lib/trpc";
 
 SplashScreen.preventAutoHideAsync().catch((err) => {
@@ -169,9 +170,11 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <ThemeProvider>
-              <MathScanProvider>
-                <RootLayoutNav />
-              </MathScanProvider>
+              <APISettingsProvider>
+                <MathScanProvider>
+                  <RootLayoutNav />
+                </MathScanProvider>
+              </APISettingsProvider>
             </ThemeProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
