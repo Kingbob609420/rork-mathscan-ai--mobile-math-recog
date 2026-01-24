@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
-import { useAPISettings } from "./APISettingsProvider";
+const DEEPSEEK_API_KEY = "sk-ae40dbba273f46a5bf7b4839deabcae4";
 
 type ProblemType = 'arithmetic' | 'algebra' | 'geometry' | 'other';
 
@@ -332,7 +332,7 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     return { score: 75, issues: [] };
   }, []);
 
-  const { apiKey } = useAPISettings();
+
 
   const processScan = useCallback(async (imageUri: string): Promise<string> => {
     let attempts = 0;
@@ -340,8 +340,8 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     
     console.log('[processScan] Starting scan process...');
     
-    if (!apiKey) {
-      throw new Error('Please configure your DeepSeek API key in Settings to scan math problems.');
+    if (!DEEPSEEK_API_KEY) {
+      throw new Error('API key not configured.');
     }
     
     while (attempts < MAX_RETRIES) {
@@ -412,7 +412,7 @@ Analyze this math homework image:`;
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
+              'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
             },
             body: JSON.stringify({
               model: 'deepseek-chat',
@@ -521,7 +521,7 @@ Analyze this math homework image:`;
     }
     
     throw new Error(`Failed to process image: ${errorMessage}`);
-  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality, resizeImageForAI, apiKey]);
+  }, [scans, saveScans, convertImageToBase64, analyzeImageQuality, resizeImageForAI]);
 
   const recentScans = useMemo(() => scans.slice(0, 5), [scans]);
 
