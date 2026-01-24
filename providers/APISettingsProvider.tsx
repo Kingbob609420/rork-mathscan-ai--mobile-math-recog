@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const HARDCODED_API_KEY = "sk-ae40dbba273f46a5bf7b4839deabcae4";
+const API_KEY_STORAGE = "deepseek_api_key";
 
 interface APISettingsContextType {
   isConfigured: boolean;
@@ -11,10 +12,25 @@ interface APISettingsContextType {
 }
 
 export const [APISettingsProvider, useAPISettings] = createContextHook<APISettingsContextType>(() => {
-  const apiKey = HARDCODED_API_KEY;
+  const [apiKey, setApiKeyState] = useState<string>("");
 
-  const setApiKey = useCallback(async (_key: string) => {
-    console.log("[APISettings] API key is hardcoded, ignoring setApiKey call");
+  useEffect(() => {
+    AsyncStorage.getItem(API_KEY_STORAGE).then((stored) => {
+      if (stored) {
+        setApiKeyState(stored);
+        console.log("[APISettings] Loaded API key from storage");
+      }
+    });
+  }, []);
+
+  const setApiKey = useCallback(async (key: string) => {
+    try {
+      await AsyncStorage.setItem(API_KEY_STORAGE, key);
+      setApiKeyState(key);
+      console.log("[APISettings] API key saved");
+    } catch (error) {
+      console.error("[APISettings] Failed to save API key:", error);
+    }
   }, []);
 
   const generateWithAI = useCallback(async (prompt: string): Promise<string> => {
