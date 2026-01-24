@@ -341,7 +341,7 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     console.log('[processScan] Starting scan process...');
     
     if (!apiKey) {
-      throw new Error('Please configure your OpenAI API key in Settings to scan math problems.');
+      throw new Error('Please configure your DeepSeek API key in Settings to scan math problems.');
     }
     
     while (attempts < MAX_RETRIES) {
@@ -362,7 +362,7 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
         
         const imageQuality = await analyzeImageQuality(base64Image);
         
-        console.log('[processScan] Calling OpenAI ChatGPT...');
+        console.log('[processScan] Calling DeepSeek API...');
         console.log('[processScan] Image base64 size:', base64Image.length);
         
         const optimizedImage = await resizeImageForAI(base64Image);
@@ -398,7 +398,7 @@ Respond ONLY with valid JSON in this exact format:
 
 Analyze this math homework image:`;
         
-        console.log('[processScan] Sending request to OpenAI...');
+        console.log('[processScan] Sending request to DeepSeek...');
         
         let result: { problems: Array<{ problemText: string; userAnswer?: string; correctAnswer?: string; isCorrect: boolean; explanation?: string; problemType?: ProblemType; steps?: string[]; confidence?: number; qualityIssues?: string[] }> };
         try {
@@ -406,16 +406,16 @@ Analyze this math homework image:`;
             setTimeout(() => reject(new Error('AI request timed out after 60s')), 60000);
           });
           
-          console.log('[processScan] Calling OpenAI gpt-4o...');
+          console.log('[processScan] Calling DeepSeek deepseek-chat...');
           
-          const generatePromise = fetch('https://api.openai.com/v1/chat/completions', {
+          const generatePromise = fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: 'gpt-4o',
+              model: 'deepseek-chat',
               messages: [
                 {
                   role: 'user',
@@ -431,7 +431,7 @@ Analyze this math homework image:`;
           }).then(async (response) => {
             if (!response.ok) {
               const errorData = await response.json().catch(() => ({}));
-              console.error('[processScan] OpenAI API error:', errorData);
+              console.error('[processScan] DeepSeek API error:', errorData);
               throw new Error(errorData.error?.message || `API request failed: ${response.status}`);
             }
             return response.json();
@@ -450,7 +450,7 @@ Analyze this math homework image:`;
           });
           
           result = await Promise.race([generatePromise, timeoutPromise]);
-          console.log('[processScan] OpenAI completed successfully');
+          console.log('[processScan] DeepSeek completed successfully');
         } catch (aiError) {
           console.error('[processScan] AI generation error:', aiError);
           const errorMsg = aiError instanceof Error ? aiError.message : String(aiError);

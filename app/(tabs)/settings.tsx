@@ -189,7 +189,7 @@ export default function SettingsScreen() {
       items: [
         {
           icon: <Key size={20} color={isConfigured ? theme.colors.success : theme.colors.warning} />,
-          title: "OpenAI API Key",
+          title: "DeepSeek API Key",
           description: isConfigured ? "Configured ✓" : "Required for scanning",
           onPress: handleOpenApiKeyModal,
           action: <ChevronRight size={20} color={theme.colors.textSecondary} />,
@@ -346,14 +346,14 @@ export default function SettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>OpenAI API Key</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>DeepSeek API Key</Text>
               <TouchableOpacity onPress={() => setShowApiKeyModal(false)}>
                 <X size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
             
             <Text style={[styles.modalDescription, { color: theme.colors.textSecondary }]}>
-              Enter your OpenAI API key to enable math scanning and worksheet generation. Get your key from platform.openai.com
+              Enter your DeepSeek API key to enable math scanning and worksheet generation. Get your key from platform.deepseek.com
             </Text>
             
             <TextInput

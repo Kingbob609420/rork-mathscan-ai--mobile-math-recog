@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_KEY_STORAGE_KEY = "openai_api_key";
+const API_KEY_STORAGE_KEY = "deepseek_api_key";
 
 interface APISettingsContextType {
   isConfigured: boolean;
@@ -49,19 +49,19 @@ export const [APISettingsProvider, useAPISettings] = createContextHook<APISettin
 
   const generateWithAI = useCallback(async (prompt: string): Promise<string> => {
     if (!apiKey) {
-      throw new Error("Please configure your OpenAI API key in Settings to use this feature.");
+      throw new Error("Please configure your DeepSeek API key in Settings to use this feature.");
     }
 
-    console.log("[AI] Generating with ChatGPT (gpt-4o-mini)");
+    console.log("[AI] Generating with DeepSeek");
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "deepseek-chat",
         messages: [
           {
             role: "user",
