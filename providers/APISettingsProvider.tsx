@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_KEY_STORAGE_KEY = "deepseek_api_key";
+const HARDCODED_API_KEY = "sk-ae40dbba273f46a5bf7b4839deabcae4";
 
 interface APISettingsContextType {
   isConfigured: boolean;
@@ -12,39 +11,10 @@ interface APISettingsContextType {
 }
 
 export const [APISettingsProvider, useAPISettings] = createContextHook<APISettingsContextType>(() => {
-  const [apiKey, setApiKeyState] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(true);
+  const apiKey = HARDCODED_API_KEY;
 
-  useEffect(() => {
-    const loadApiKey = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-        if (stored) {
-          setApiKeyState(stored);
-          console.log("[APISettings] Loaded API key from storage");
-        }
-      } catch (error) {
-        console.error("[APISettings] Error loading API key:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadApiKey();
-  }, []);
-
-  const setApiKey = useCallback(async (key: string) => {
-    try {
-      if (key.trim()) {
-        await AsyncStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
-      } else {
-        await AsyncStorage.removeItem(API_KEY_STORAGE_KEY);
-      }
-      setApiKeyState(key.trim());
-      console.log("[APISettings] API key saved");
-    } catch (error) {
-      console.error("[APISettings] Error saving API key:", error);
-      throw error;
-    }
+  const setApiKey = useCallback(async (_key: string) => {
+    console.log("[APISettings] API key is hardcoded, ignoring setApiKey call");
   }, []);
 
   const generateWithAI = useCallback(async (prompt: string): Promise<string> => {
@@ -90,7 +60,7 @@ export const [APISettingsProvider, useAPISettings] = createContextHook<APISettin
     return content;
   }, [apiKey]);
 
-  const isConfigured = useMemo(() => !isLoading && apiKey.length > 0, [isLoading, apiKey]);
+  const isConfigured = useMemo(() => apiKey.length > 0, [apiKey]);
 
   return useMemo(() => ({
     isConfigured,
