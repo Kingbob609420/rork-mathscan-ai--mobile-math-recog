@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import createContextHook from "@nkzw/create-context-hook";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
-const DEEPSEEK_API_KEY = "sk-ae40dbba273f46a5bf7b4839deabcae4";
+import { generateObject } from "@rork-ai/toolkit-sdk";
+import { z } from "zod";
 
 type ProblemType = 'arithmetic' | 'algebra' | 'geometry' | 'other';
 
@@ -340,10 +341,6 @@ export const [MathScanProvider, useMathScan] = createContextHook<MathScanContext
     
     console.log('[processScan] Starting scan process...');
     
-    if (!DEEPSEEK_API_KEY) {
-      throw new Error('API key not configured.');
-    }
-    
     while (attempts < MAX_RETRIES) {
       attempts++;
       try {
@@ -398,59 +395,44 @@ Respond ONLY with valid JSON in this exact format:
 
 Analyze this math homework image:`;
         
-        console.log('[processScan] Sending request to DeepSeek...');
+        console.log('[processScan] Sending request to AI...');
         
-        let result: { problems: Array<{ problemText: string; userAnswer?: string; correctAnswer?: string; isCorrect: boolean; explanation?: string; problemType?: ProblemType; steps?: string[]; confidence?: number; qualityIssues?: string[] }> };
+        const problemSchema = z.object({
+          problems: z.array(z.object({
+            problemText: z.string(),
+            userAnswer: z.string().nullable().optional(),
+            correctAnswer: z.string().nullable().optional(),
+            isCorrect: z.boolean(),
+            explanation: z.string().nullable().optional(),
+            problemType: z.enum(['arithmetic', 'algebra', 'geometry', 'other']).optional(),
+            steps: z.array(z.string()).optional(),
+            confidence: z.number().optional(),
+          }))
+        });
+        
+        let result: z.infer<typeof problemSchema>;
         try {
           const timeoutPromise = new Promise<never>((_, reject) => {
             setTimeout(() => reject(new Error('AI request timed out after 60s')), 60000);
           });
           
-          console.log('[processScan] Calling DeepSeek deepseek-chat...');
+          console.log('[processScan] Calling generateObject with vision...');
           
-          const generatePromise = fetch('https://api.deepseek.com/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-            },
-            body: JSON.stringify({
-              model: 'deepseek-chat',
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    { type: 'text', text: prompt },
-                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${optimizedImage}` } }
-                  ]
-                }
-              ],
-              max_tokens: 4000,
-              temperature: 0.3,
-            }),
-          }).then(async (response) => {
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              console.error('[processScan] DeepSeek API error:', errorData);
-              throw new Error(errorData.error?.message || `API request failed: ${response.status}`);
-            }
-            return response.json();
-          }).then((data) => {
-            const content = data.choices?.[0]?.message?.content;
-            if (!content) {
-              throw new Error('No content in API response');
-            }
-            console.log('[processScan] Raw response:', content.substring(0, 500));
-            
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-              throw new Error('Could not parse JSON from response');
-            }
-            return JSON.parse(jsonMatch[0]);
+          const generatePromise = generateObject({
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: prompt },
+                  { type: 'image', image: `data:image/jpeg;base64,${optimizedImage}` }
+                ]
+              }
+            ],
+            schema: problemSchema,
           });
           
           result = await Promise.race([generatePromise, timeoutPromise]);
-          console.log('[processScan] DeepSeek completed successfully');
+          console.log('[processScan] AI completed successfully');
         } catch (aiError) {
           console.error('[processScan] AI generation error:', aiError);
           const errorMsg = aiError instanceof Error ? aiError.message : String(aiError);
@@ -478,14 +460,14 @@ Analyze this math homework image:`;
         
         const problems: MathProblem[] = result.problems.map(p => ({
           problemText: p.problemText,
-          userAnswer: p.userAnswer,
-          correctAnswer: p.correctAnswer,
+          userAnswer: p.userAnswer ?? undefined,
+          correctAnswer: p.correctAnswer ?? undefined,
           isCorrect: p.isCorrect,
-          explanation: p.explanation,
+          explanation: p.explanation ?? undefined,
           problemType: p.problemType,
           steps: p.steps || [],
           confidence: p.confidence,
-          qualityIssues: p.qualityIssues || []
+          qualityIssues: []
         }));
 
         const scanId = Date.now().toString();
